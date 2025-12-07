@@ -22,11 +22,11 @@ Sistemul este împărțit în containere Docker pentru izolare și scalabilitate
 
 ```mermaid
 graph TD
-    Client[Client Desktop (Tkinter)] -->|TCP Socket :5555| Server[Python Server Container]
-    Server -->|HTTP Request| Ollama[Ollama Container (Llama 3)]
+    Client["Client Desktop (Tkinter)"] -->|TCP Socket :5555| Server["Python Server Container"]
+    Server -->|HTTP Request| Ollama["Ollama Container (Llama 3)"]
     Ollama -->|AI Response| Server
     Server -->|Broadcast| Client
-    Cron[Auto-Deploy Script] -->|Git Pull| GitHub[GitHub Repo (Main)]
+    Cron["Auto-Deploy Script"] -->|Git Pull| GitHub["GitHub Repo (Main)"]
 	
 ##  Structura Proiectului
 
