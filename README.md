@@ -1,4 +1,4 @@
-# FR-MAP-CHAT-LLM-LSI 💬 Python Socket Chat
+# FR-MAP-CHAT-LLM-LSI / Python Socket Chat
 
 O aplicație de chat în timp real, multithreaded, construită pe arhitectura Client-Server folosind socket-uri TCP pure. Proiectul este containerizat cu Docker pentru o desfășurare ușoară pe serverul de producție (Ubuntu).
 
@@ -6,7 +6,7 @@ O aplicație de chat în timp real, multithreaded, construită pe arhitectura Cl
 ![Docker](https://img.shields.io/badge/Docker-Enabled-blue)
 ![Status](https://img.shields.io/badge/Status-Active-green)
 
-## 🏗️ Arhitectură
+## ️ Arhitectură
 
 Aplicația este împărțită în două componente principale:
 1.  **Serverul:** Gestionează conexiunile și redistribuie mesajele (Broadcasting). Rulează într-un container Docker.
@@ -14,7 +14,7 @@ Aplicația este împărțită în două componente principale:
 
 
 
-## 📂 Structura Proiectului
+##  Structura Proiectului
 
 ```text
 ├── client/
