@@ -20,7 +20,6 @@ Sistemul include un "participant" virtual (**AI-Lead**) care:
 
 Sistemul este împărțit în containere Docker pentru izolare și scalabilitate:
 
-```mermaid
 graph TD
     Client["Client Desktop (Tkinter)"] -->|TCP Socket :5555| Server["Python Server Container"]
     Server -->|HTTP Request| Ollama["Ollama Container (Llama 3)"]
