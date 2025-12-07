@@ -1,148 +1,184 @@
 import socket
 import threading
-import os
 import time
-from openai import OpenAI
+import os
+import sys
 
-# --- CONFIGURARE ---
+# --- IMPORT GEMINI ---
+try:
+    import google.generativeai as genai
+except ImportError:
+    print("EROARE: Libraria 'google-generativeai' lipseste.")
+    sys.exit(1)
+
+# IMPORTANT PENTRU DOCKER:
+# 0.0.0.0 inseamna ca asculta pe toate interfetele de retea
 HOST = '0.0.0.0'
-PORT = int(os.getenv('PORT', 5555))
-OLLAMA_URL = os.getenv('OLLAMA_HOST', 'http://ollama:11434/v1')
+PORT = 5555
+BUFFER_SIZE = 1024
+SILENCE_THRESHOLD = 30
 
-# Prompt-ul care definește personalitatea AI-ului
-SYSTEM_PROMPT = """
-Ești 'AI-Lead', un asistent tehnic într-un chat de developeri.
-1. Răspunde scurt și la obiect (maxim 2 fraze).
-2. Dacă userii vorbesc despre cod, dă sfaturi bune.
-3. Dacă e liniște, propune un subiect tehnic interesant.
-"""
+# Aceasta linie citeste variabila din mediul rularii
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+if not GEMINI_API_KEY:
+    print("EROARE: Variabila de mediu GEMINI_API_KEY nu este setata!")
+    sys.exit(1)
 
-# --- CLASA AI AGENT ---
-class LLMParticipant:
-    def __init__(self, silence_threshold=60):
-        self.client = OpenAI(base_url=OLLAMA_URL, api_key='ollama')
-        self.history = []
-        self.silence_threshold = silence_threshold
-        self.last_msg_time = time.time()
-        self.running = True
-
-        # Thread care verifică liniștea
-        self.monitor = threading.Thread(target=self._silence_watchdog)
-        self.monitor.daemon = True
-        self.monitor.start()
-
-    def add_message(self, user, content):
-        self.last_msg_time = time.time()
-        self.history.append({"role": "user", "content": f"{user}: {content}"})
-        if len(self.history) > 10:  # Păstrăm context mic
-            self.history.pop(0)
-
-        # Trigger: Răspunde doar dacă este strigat sau e o întrebare directă
-        if "ai" in content.lower() or "@ai" in content.lower():
-            return self._generate_response("reply")
-        return None
-
-    def _generate_response(self, trigger_type):
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + self.history
-
-        if trigger_type == "silence":
-            messages.append({"role": "user", "content": "E liniște. Generează o întrebare tehnică scurtă."})
-
-        try:
-            response = self.client.chat.completions.create(
-                model="llama3",
-                messages=messages,
-                max_tokens=100
-            )
-            reply = response.choices[0].message.content
-            self.history.append({"role": "assistant", "content": reply})
-            return reply
-        except Exception as e:
-            print(f"Eroare AI: {e}")
-            return None
-
-    def _silence_watchdog(self):
-        while self.running:
-            time.sleep(10)
-            if time.time() - self.last_msg_time > self.silence_threshold:
-                print("Liniște detectată... AI-ul intervine.")
-                reply = self._generate_response("silence")
-                if reply:
-                    broadcast_function(f"AI-Lead: {reply}".encode('utf-8'))
-                self.last_msg_time = time.time()
-
-
-# --- SERVER SOCKET ---
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind((HOST, PORT))
-server.listen()
+genai.configure(api_key=GEMINI_API_KEY)
 
 clients = []
-nicknames = []
+last_message_time = time.time()
+conversation_history = []
 
-# Inițializăm AI-ul (intervine după 60 secunde de liniște)
-ai_bot = LLMParticipant(silence_threshold=60)
+# --- DEFINIȚII PERSONALITĂȚI (Aceleași ca înainte) ---
+PROMPTS = {
+    "Expert IT (Cortex)": "Ești Cortex, Arhitect Software Senior. Analizezi tehnic. Dacă e banal -> PASS. Dacă e risc -> INTERVINE. La [SILENCE_DETECTED] propui soluții.",
+    "Expert Contabil": "Ești Contabil. Dacă nu sunt bani la mijloc -> PASS. Altfel -> INTERVINE.",
+    "Avocat Corporatist": "Ești Avocat. Riscuri legale/GDPR -> INTERVINE. Altfel -> PASS.",
+    "Project Manager": "Ești PM. Dacă echipa deviază -> INTERVINE. La [SILENCE_DETECTED] cere status.",
+    "Medic (Consultant)": "Ești Medic. Doar subiecte medicale -> INTERVINE. Altfel -> PASS.",
+    "Expert CyberSecurity": "Ești Hacker. Scanezi vulnerabilități. Sigur -> PASS. Risc -> ALERTA.",
+    "UX/UI Designer": "Ești Designer. Backend -> PASS. Interfață -> INTERVINE.",
+    "Data Scientist": "Ești Data Scientist. Opinii -> PASS. Date greșite -> INTERVINE.",
+    "HR Manager": "Ești HR. Conflicte -> INTERVINE. Altfel -> PASS.",
+    "Marketing Strategist": "Ești Marketing. Produs plictisitor -> INTERVINE. Altfel -> PASS.",
+    "Business Analyst": "Ești BA. Soluția nu rezolvă nevoia -> INTERVINE. Altfel -> PASS.",
+    "DevOps Engineer": "Ești DevOps. Deploy greu -> INTERVINE. Altfel -> PASS.",
+    "Quality Assurance (QA)": "Ești QA. Cauți bug-uri. Altfel -> PASS.",
+    "Startup Founder": "Ești Fondator. Vrei viteză ('Ship it!'). Altfel -> PASS.",
+    "Profesor Istorie": "Analizezi greșelile istorice. Altfel -> PASS.",
+    "Psiholog Organizational": "Analizezi dinamica grupului. Armonie -> PASS.",
+    "Investitor VC": "Dacă ideea nu face bani -> INTERVINE. Altfel -> PASS.",
+    "Jurnalist Tech": "Întrebări etice. Altfel -> PASS.",
+    "Consultant GDPR": "Date personale -> INTERVINE. Altfel -> PASS.",
+    "Expert Logistică": "Eficiență fluxuri. Altfel -> PASS."
+}
+
+current_prompt_key = "Expert IT (Cortex)"
+active_system_instruction = PROMPTS[current_prompt_key]
 
 
-# Funcție globală pentru a permite AI-ului să vorbească singur
-def broadcast_function(message):
+# --- LOGICĂ GEMINI ---
+def call_gemini(messages_history, trigger_msg=None):
+    try:
+        model = genai.GenerativeModel(
+            model_name='gemini-1.5-flash',
+            system_instruction=active_system_instruction
+        )
+        gemini_history = []
+        for msg in messages_history:
+            gemini_history.append({"role": "user", "parts": [msg]})
+
+        chat = model.start_chat(history=gemini_history)
+
+        prompt_to_send = trigger_msg if trigger_msg else "Analizează contextul. Răspunde conform rolului (PASS sau intervenție)."
+        response = chat.send_message(prompt_to_send)
+        return response.text.strip()
+    except Exception as e:
+        print(f"Eroare API Gemini: {e}")
+        return "PASS"
+
+
+def get_ai_decision(trigger_type="review", explicit_msg=None):
+    global conversation_history
+    context_msgs = conversation_history[-20:]
+
+    trigger_text = explicit_msg
+    if trigger_type == "silence":
+        trigger_text = "[SILENCE_DETECTED] - Discuția a murit. Propune o direcție nouă."
+    elif trigger_text is None:
+        trigger_text = "Review this conversation."
+
+    ai_raw_text = call_gemini(context_msgs, trigger_msg=trigger_text)
+    clean_text = ai_raw_text.strip().replace(".", "")
+
+    if clean_text.upper() == "PASS":
+        print(f"Gemini ({current_prompt_key}) -> PASS")
+        return None
+    return ai_raw_text
+
+
+# --- SERVER ---
+def broadcast(message, is_binary=False):
+    if not is_binary:
+        message = message.encode('utf-8')
     for client in clients:
         try:
             client.send(message)
         except:
-            pass
+            if client in clients:
+                clients.remove(client)
 
 
-def broadcast(message):
-    broadcast_function(message)
+def silence_watchdog():
+    global last_message_time
+    print("Watchdog pornit.")
+    while True:
+        time.sleep(5)
+        if time.time() - last_message_time > SILENCE_THRESHOLD:
+            print("Liniște detectată...")
+            response = get_ai_decision(trigger_type="silence")
+            if response:
+                last_message_time = time.time()
+                broadcast(f"AI ({current_prompt_key}): {response}")
+            else:
+                last_message_time = time.time() - (SILENCE_THRESHOLD - 10)
 
 
-def handle(client):
+def handle_client(client):
+    global last_message_time, active_system_instruction, current_prompt_key, BUFFER_SIZE
     while True:
         try:
-            message = client.recv(1024)
-            broadcast(message)
+            message = client.recv(BUFFER_SIZE)
+            if not message: break
 
-            # Trimitem copia mesajului la AI
-            try:
-                decoded = message.decode('utf-8')
-                if ": " in decoded:
-                    user, text = decoded.split(": ", 1)
-                    ai_reply = ai_bot.add_message(user, text)
-                    if ai_reply:
-                        broadcast(f"AI-Lead: {ai_reply}".encode('utf-8'))
-            except:
-                pass  # Ignorăm erori de decodare
+            decoded_msg = message.decode('utf-8')
+            last_message_time = time.time()
 
+            if decoded_msg.startswith("CFG:"):
+                parts = decoded_msg.split(":")
+                if parts[1] == "PERS" and parts[2] in PROMPTS:
+                    current_prompt_key = parts[2]
+                    active_system_instruction = PROMPTS[parts[2]]
+                    broadcast(f"SYS:PERSONALITATE SCHIMBATA IN: {current_prompt_key}")
+                elif parts[1] == "BUFF":
+                    try:
+                        BUFFER_SIZE = int(parts[2])
+                        broadcast(f"SYS:BUFFER SERVER SETAT LA: {BUFFER_SIZE}")
+                    except:
+                        pass
+            else:
+                broadcast(message, is_binary=True)
+                conversation_history.append(decoded_msg)
+                if len(conversation_history) > 30: conversation_history.pop(0)
+
+                if not decoded_msg.startswith("SYS:") and "AI (" not in decoded_msg:
+                    threading.Thread(target=run_ai_review, args=(decoded_msg,)).start()
         except:
-            if client in clients:
-                index = clients.index(client)
-                clients.remove(client)
-                client.close()
-                nickname = nicknames[index]
-                broadcast(f'{nickname} a iesit!'.encode('utf-8'))
-                nicknames.remove(nickname)
-                break
+            if client in clients: clients.remove(client)
+            client.close()
+            break
+
+
+def run_ai_review(latest_msg):
+    response = get_ai_decision(trigger_type="review", explicit_msg=latest_msg)
+    if response:
+        broadcast(f"AI ({current_prompt_key}): {response}")
 
 
 def receive():
-    print(f"Server AI pornit pe portul {PORT}...")
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind((HOST, PORT))
+    server.listen()
+    print(f"SERVER DOCKER PORNIT PE {HOST}:{PORT}")
+    threading.Thread(target=silence_watchdog, daemon=True).start()
     while True:
         client, address = server.accept()
-        print(f"Conectat: {str(address)}")
-
-        client.send('NICK'.encode('utf-8'))
-        nickname = client.recv(1024).decode('utf-8')
-        nicknames.append(nickname)
         clients.append(client)
-
-        print(f"Nickname: {nickname}")
-        broadcast(f"{nickname} s-a alaturat!".encode('utf-8'))
-        client.send('Conectat la serverul AI!\n'.encode('utf-8'))
-
-        thread = threading.Thread(target=handle, args=(client,))
-        thread.start()
+        print(f"Conectat: {address}")
+        client.send(f"SYS:CONECTAT LA SERVER. ROL: {current_prompt_key}".encode('utf-8'))
+        threading.Thread(target=handle_client, args=(client,)).start()
 
 
 if __name__ == "__main__":
