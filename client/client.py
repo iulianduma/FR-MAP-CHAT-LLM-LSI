@@ -1,22 +1,25 @@
 import socket
 import threading
 import tkinter as tk
-from tkinter import simpledialog, scrolledtext, ttk
+from tkinter import simpledialog, scrolledtext, ttk, messagebox
 import random
-import os
-import ctypes
-import requests
+import sys
 
-HOST = 'iulianddd.ddns.net'
+# --- CONFIGURARE REȚEA ---
+# IMPORTANT: Daca testezi de pe acelasi PC cu serverul, pune '127.0.0.1'
+# Daca testezi de pe alt PC sau internet, pune 'iulianddd.ddns.net'
+HOST = '192.168.1.254'
 PORT = 5555
 
-COLOR_BG = "#0d0d0d"  # Aproape negru
-COLOR_FG = "#00ffff"  # Cyan Neon
-COLOR_ACCENT = "#ff00ff"  # Magenta Neon
-COLOR_AI = "#808080"  # Gri
-FONT_NAME = "Poppins"
+# --- TEMĂ MODERN LIGHT ---
+COLOR_BG = "#f0f2f5"  # Gri foarte deschis (ca la WhatsApp Web)
+COLOR_CHAT_BG = "#ffffff"  # Alb pur pentru zona de text
+COLOR_TEXT = "#1c1e21"  # Aproape negru (lizibil)
+COLOR_BTN = "#0084ff"  # Albastru Messenger
+COLOR_BTN_TEXT = "#ffffff"
+COLOR_AI = "#6c757d"  # Gri elegant pentru AI
+COLOR_USER = "#000000"  # Negru pentru useri
 
-# Aceeasi lista ca pe server (doar cheile)
 PERSONALITIES = [
     "Expert IT (Cortex)", "Expert Contabil", "Avocat Corporatist",
     "Project Manager", "Medic (Consultant)", "Expert CyberSecurity",
@@ -27,46 +30,31 @@ PERSONALITIES = [
 ]
 
 
-def install_poppins():
-    """Descarcă și instalează fontul temporar (Windows)"""
-    font_path = os.path.join(os.getcwd(), "Poppins-Regular.ttf")
-    if not os.path.exists(font_path):
-        try:
-            url = "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Regular.ttf"
-            r = requests.get(url, allow_redirects=True)
-            with open(font_path, 'wb') as f:
-                f.write(r.content)
-        except:
-            pass  # Folosim fallback
-
-    try:
-        if os.name == 'nt':
-            ctypes.windll.gdi32.AddFontResourceExW(font_path, 0x10, 0)
-    except:
-        pass
-
-
 class ClientGui:
     def __init__(self):
-        install_poppins()
-
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            self.sock.connect((HOST, PORT))
-        except:
-            print("Nu s-a putut conecta la server!")
-            exit()
-
         msg = tk.Tk()
         msg.withdraw()
 
-        self.nickname = simpledialog.askstring("Login", "Nume utilizator:", parent=msg)
+        # 1. Login
+        self.nickname = simpledialog.askstring("Autentificare", "Numele tău:", parent=msg)
         if not self.nickname:
-            self.nickname = f"User{random.randint(100, 999)}"
+            sys.exit()
+
+        # 2. Conectare
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.settimeout(5)  # 5 secunde maxim sa astepte serverul
+            self.sock.connect((HOST, PORT))
+            self.sock.settimeout(None)
+        except Exception as e:
+            messagebox.showerror("Eroare Fatală",
+                                 f"Nu m-am putut conecta la serverul: {HOST}\n\n"
+                                 f"Verifică:\n1. Dacă serverul Docker rulează.\n2. Dacă adresa IP este corectă.\n3. Port Forwarding (5555)."
+                                 )
+            sys.exit()
 
         self.gui_done = False
         self.running = True
-        self.user_colors = {}  # Cache pentru culori useri
 
         gui_thread = threading.Thread(target=self.gui_loop)
         receive_thread = threading.Thread(target=self.receive)
@@ -74,64 +62,47 @@ class ClientGui:
         gui_thread.start()
         receive_thread.start()
 
-    def get_pastel_color(self):
-        # Generam culori pastelate luminoase pentru contrast pe negru
-        r = random.randint(150, 250)
-        g = random.randint(150, 250)
-        b = random.randint(150, 250)
-        return f'#{r:02x}{g:02x}{b:02x}'
-
     def gui_loop(self):
         self.win = tk.Tk()
-        self.win.title(f"Neon Pro Chat - {self.nickname}")
+        self.win.title(f"Team Chat - {self.nickname}")
         self.win.configure(bg=COLOR_BG)
-        self.win.geometry("600x750")
+        self.win.geometry("450x650")
 
-        # Configurare stiluri
-        style = ttk.Style()
-        style.theme_use('clam')
-        style.configure("TCombobox", fieldbackground="#2a2a2a", background=COLOR_ACCENT, foreground="white",
-                        arrowcolor="white")
-
-        # Header
-        header_frame = tk.Frame(self.win, bg=COLOR_BG)
-        header_frame.pack(fill='x', padx=20, pady=10)
-
-        self.label_title = tk.Label(header_frame, text="AI TEAM CHAT", font=(FONT_NAME, 18, "bold"), bg=COLOR_BG,
-                                    fg=COLOR_ACCENT)
-        self.label_title.pack(side="left")
-
-        status_dot = tk.Label(header_frame, text="● ONLINE", font=(FONT_NAME, 8), bg=COLOR_BG, fg="#00ff00")
-        status_dot.pack(side="right", anchor="s")
+        # Header simplu
+        header = tk.Frame(self.win, bg="white", height=50)
+        header.pack(fill='x', side='top')
+        tk.Label(header, text="Echo Team Chat", font=("Helvetica", 12, "bold"), bg="white", fg=COLOR_TEXT).pack(pady=10)
 
         # Zona Chat
-        self.text_area = scrolledtext.ScrolledText(self.win, bg="#111111", fg="white", font=(FONT_NAME, 10),
-                                                   insertbackground="white", bd=0)
-        self.text_area.pack(padx=20, pady=5, expand=True, fill='both')
+        frame_chat = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=10)
+        frame_chat.pack(expand=True, fill='both')
+
+        self.text_area = scrolledtext.ScrolledText(frame_chat, bg=COLOR_CHAT_BG, fg=COLOR_TEXT, font=("Helvetica", 10),
+                                                   bd=0, padx=10, pady=10)
+        self.text_area.pack(expand=True, fill='both')
         self.text_area.config(state='disabled')
 
-        # Tag-uri stilizare
-        self.text_area.tag_config('ai_style', foreground=COLOR_AI, font=(FONT_NAME, 10, 'italic'))
-        self.text_area.tag_config('sys_style', foreground=COLOR_ACCENT, font=(FONT_NAME, 9, 'bold'))
-        self.text_area.tag_config('self_style', foreground=COLOR_FG)
+        # Tag-uri vizuale
+        self.text_area.tag_config('ai_tag', foreground=COLOR_AI, font=("Helvetica", 10, "italic"))
+        self.text_area.tag_config('sys_tag', foreground="red", font=("Helvetica", 9))
+        self.text_area.tag_config('me_tag', foreground=COLOR_BTN, font=("Helvetica", 10, "bold"))
+        self.text_area.tag_config('bold', font=("Helvetica", 10, "bold"))
 
         # Zona Input
-        input_frame = tk.Frame(self.win, bg=COLOR_BG)
-        input_frame.pack(padx=20, pady=10, fill='x')
+        input_frame = tk.Frame(self.win, bg="white", pady=10, padx=10)
+        input_frame.pack(fill='x', side='bottom')
 
-        self.input_area = tk.Entry(input_frame, bg="#222222", fg="white", font=(FONT_NAME, 11),
-                                   insertbackground="white", relief="flat")
-        self.input_area.pack(side="left", fill='x', expand=True, ipady=5)
+        # Buton Setari (mic, gri)
+        tk.Button(input_frame, text="⚙", bg="#e4e6eb", fg="black", bd=0, padx=10, pady=5,
+                  command=self.open_settings).pack(side="left", padx=(0, 5))
+
+        self.input_area = tk.Entry(input_frame, bg="#f0f2f5", fg="black", font=("Helvetica", 11), relief="flat", bd=5)
+        self.input_area.pack(side="left", fill='x', expand=True)
         self.input_area.bind("<Return>", self.write)
 
-        # Butoane
-        btn_config = tk.Button(input_frame, text="⚙ SETĂRI", font=(FONT_NAME, 9, "bold"), bg="#333333", fg="white",
-                               borderwidth=0, command=self.open_settings)
-        btn_config.pack(side="left", padx=(10, 5))
-
-        btn_send = tk.Button(input_frame, text="➤", font=(FONT_NAME, 12, "bold"), bg=COLOR_ACCENT, fg="black",
-                             borderwidth=0, command=self.write)
-        btn_send.pack(side="left")
+        # Buton Trimite (Albastru)
+        tk.Button(input_frame, text="Trimite", bg=COLOR_BTN, fg="white", font=("Helvetica", 10, "bold"), bd=0, padx=15,
+                  pady=5, command=self.write).pack(side="right", padx=(5, 0))
 
         self.gui_done = True
         self.win.protocol("WM_DELETE_WINDOW", self.stop)
@@ -139,47 +110,48 @@ class ClientGui:
 
     def open_settings(self):
         top = tk.Toplevel(self.win)
-        top.title("Configurare AI")
-        top.geometry("400x350")
-        top.configure(bg=COLOR_BG)
+        top.title("Setări Agent AI")
+        top.geometry("350x250")
+        top.configure(bg="white")
 
-        tk.Label(top, text="Alege Expertul AI:", font=(FONT_NAME, 12, "bold"), bg=COLOR_BG, fg="white").pack(
-            pady=(20, 5))
+        tk.Label(top, text="Alege Rolul AI:", font=("Helvetica", 10, "bold"), bg="white").pack(pady=(20, 5))
 
         self.pers_var = tk.StringVar()
-        self.pers_combo = ttk.Combobox(top, textvariable=self.pers_var, values=PERSONALITIES, state="readonly",
-                                       font=(FONT_NAME, 10))
-        self.pers_combo.current(0)
-        self.pers_combo.pack(pady=5, padx=30, fill='x')
+        combo = ttk.Combobox(top, textvariable=self.pers_var, values=PERSONALITIES, state="readonly", width=30)
+        combo.current(0)
+        combo.pack(pady=5)
 
-        tk.Button(top, text="Activează Expert", bg=COLOR_FG, fg="black", font=(FONT_NAME, 10, "bold"),
-                  command=lambda: self.send_config("PERS", self.pers_var.get())).pack(pady=10)
-
-        tk.Label(top, text="--- Retea ---", bg=COLOR_BG, fg="grey").pack(pady=10)
-
-        tk.Label(top, text="Buffer Size:", font=(FONT_NAME, 10), bg=COLOR_BG, fg="white").pack()
-        self.buff_var = tk.StringVar(value="1024")
-        tk.Entry(top, textvariable=self.buff_var, bg="#222222", fg="white", justify="center").pack(pady=5)
-
-        tk.Button(top, text="Update Buffer", bg="#333333", fg="white",
-                  command=lambda: self.send_config("BUFF", self.buff_var.get())).pack(pady=5)
+        tk.Button(top, text="Aplică Schimbarea", bg=COLOR_BTN, fg="white", bd=0, pady=5,
+                  command=lambda: self.send_config("PERS", self.pers_var.get())).pack(pady=15)
 
     def send_config(self, type, value):
         msg = f"CFG:{type}:{value}"
-        self.sock.send(msg.encode('utf-8'))
+        try:
+            self.sock.send(msg.encode('utf-8'))
+            messagebox.showinfo("Info", "Configurația a fost actualizată.")
+        except:
+            pass
 
     def write(self, event=None):
         txt = self.input_area.get()
         if txt:
-            message = f"{self.nickname}: {txt}"
-            self.sock.send(message.encode('utf-8'))
-            self.input_area.delete(0, 'end')
+            message = f"{self.nickname}:{txt}"
+            try:
+                self.sock.send(message.encode('utf-8'))
+                self.input_area.delete(0, 'end')
+            except:
+                self.text_area.config(state='normal')
+                self.text_area.insert('end', "Eroare conexiune!\n", 'sys_tag')
+                self.text_area.config(state='disabled')
 
     def stop(self):
         self.running = False
         self.win.destroy()
-        self.sock.close()
-        exit(0)
+        try:
+            self.sock.close()
+        except:
+            pass
+        sys.exit()
 
     def receive(self):
         while self.running:
@@ -189,31 +161,34 @@ class ClientGui:
                     self.text_area.config(state='normal')
 
                     if message.startswith("SYS:"):
-                        clean_msg = message.replace("SYS:", "")
-                        self.text_area.insert('end', f"█ {clean_msg}\n", 'sys_style')
+                        clean = message.replace("SYS:", "")
+                        self.text_area.insert('end', f"⚠ {clean}\n", 'sys_tag')
 
                     elif "AI (" in message:
-                        # Format AI: AI (Rol): Mesaj
-                        self.text_area.insert('end', message + "\n", 'ai_style')
+                        # Format: AI (Rol): Mesaj
+                        parts = message.split("): ", 1)
+                        if len(parts) > 1:
+                            role = parts[0] + ")"
+                            msg = parts[1]
+                            self.text_area.insert('end', role + ": ", 'ai_tag')
+                            self.text_area.insert('end', msg + "\n")
+                        else:
+                            self.text_area.insert('end', message + "\n", 'ai_tag')
 
                     else:
-                        # Format User: Nume: Mesaj
-                        try:
+                        # Format: User:Mesaj
+                        if ":" in message:
                             parts = message.split(":", 1)
-                            username = parts[0]
-                            content = parts[1] if len(parts) > 1 else ""
+                            u_name = parts[0]
+                            u_msg = parts[1]
 
-                            if username not in self.user_colors:
-                                self.user_colors[username] = self.get_pastel_color()
+                            if u_name == self.nickname:
+                                self.text_area.insert('end', "Eu: ", 'me_tag')
+                            else:
+                                self.text_area.insert('end', u_name + ": ", 'bold')
 
-                            # Scriem numele cu culoare
-                            self.text_area.insert('end', username, username)
-                            self.text_area.tag_config(username, foreground=self.user_colors[username],
-                                                      font=(FONT_NAME, 10, "bold"))
-
-                            # Scriem mesajul normal
-                            self.text_area.insert('end', f":{content}\n")
-                        except:
+                            self.text_area.insert('end', u_msg + "\n")
+                        else:
                             self.text_area.insert('end', message + "\n")
 
                     self.text_area.yview('end')
@@ -222,4 +197,5 @@ class ClientGui:
                 break
 
 
-client = ClientGui()
+if __name__ == "__main__":
+    ClientGui()
