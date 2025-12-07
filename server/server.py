@@ -25,12 +25,12 @@ if not GEMINI_API_KEY:
 # Configurare initiala
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- SELECTARE DINAMICĂ MODEL ---
+# --- SELECTARE DINAMICĂ MODEL (OPTIMIZATĂ) ---
 ACTIVE_MODEL_NAME = ""
 
 
 def pick_best_model():
-    """Interogheaza API-ul pentru a gasi cel mai bun model disponibil."""
+    """Selectează cel mai bun model Flash disponibil (2.5 > 2.0 > 1.5)."""
     global ACTIVE_MODEL_NAME
     print("--- Cautare modele disponibile ---")
     try:
@@ -38,32 +38,33 @@ def pick_best_model():
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 available_models.append(m.name)
-                print(f"Gasit: {m.name}")
 
-        # Logica de prioritate: Flash > 1.5 Pro > Pro > Orice altceva
+        # Definim ordinea de priorități (de la cel mai bun la fallback)
+        priority_list = [
+            "models/gemini-2.5-flash",  # Cel mai nou si rapid
+            "models/gemini-2.0-flash",  # Foarte stabil
+            "models/gemini-1.5-flash",  # Clasicul
+            "models/gemini-flash-latest",  # Alias generic
+            "models/gemini-2.5-pro",  # Puternic, dar poate mai lent
+            "models/gemini-pro-latest"  # Fallback sigur
+        ]
+
         chosen = None
 
-        # 1. Cautam Flash (cel mai rapid)
-        for m in available_models:
-            if "flash" in m.lower() and "1.5" in m:
-                chosen = m
+        # 1. Căutăm exact modelele din lista de priorități
+        for priority in priority_list:
+            if priority in available_models:
+                chosen = priority
                 break
 
-        # 2. Daca nu, cautam 1.5 Pro
+        # 2. Dacă nu găsim nimic exact, căutăm orice conține "flash"
         if not chosen:
             for m in available_models:
-                if "pro" in m.lower() and "1.5" in m:
+                if "flash" in m.lower():
                     chosen = m
                     break
 
-        # 3. Fallback la gemini-pro clasic
-        if not chosen:
-            for m in available_models:
-                if "gemini-pro" in m:
-                    chosen = m
-                    break
-
-        # 4. Ultimul resort
+        # 3. Ultimul resort: primul model disponibil
         if not chosen and available_models:
             chosen = available_models[0]
 
@@ -76,8 +77,7 @@ def pick_best_model():
 
     except Exception as e:
         print(f"Eroare la listarea modelelor: {e}")
-        # Fallback hardcodat in caz de eroare grava la listare
-        ACTIVE_MODEL_NAME = "models/gemini-1.5-flash"
+        ACTIVE_MODEL_NAME = "models/gemini-2.5-flash"
         print(f"Se incearca fallback fortat la: {ACTIVE_MODEL_NAME}")
 
 
@@ -119,7 +119,6 @@ active_system_instruction = PROMPTS[current_prompt_key]
 # --- LOGICĂ GEMINI ---
 def call_gemini(messages_history, trigger_msg=None):
     try:
-        # Folosim modelul detectat dinamic
         model = genai.GenerativeModel(
             model_name=ACTIVE_MODEL_NAME,
             system_instruction=active_system_instruction
@@ -149,7 +148,10 @@ def get_ai_decision(trigger_type="review", explicit_msg=None):
         trigger_text = "Review this conversation."
 
     ai_raw_text = call_gemini(context_msgs, trigger_msg=trigger_text)
-    clean_text = ai_raw_text.strip().replace(".", "")
+
+    # Clean response
+    clean_text = ai_raw_text.strip()
+    if clean_text.endswith("."): clean_text = clean_text[:-1]
 
     if clean_text.upper() == "PASS":
         print(f"Gemini ({current_prompt_key}) -> PASS")

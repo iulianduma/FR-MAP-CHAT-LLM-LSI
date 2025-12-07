@@ -7,7 +7,7 @@ import os
 import ctypes
 import requests
 
-HOST = '127.0.0.1'
+HOST = 'iulianddd.ddns.net'
 PORT = 5555
 
 COLOR_BG = "#0d0d0d"  # Aproape negru
