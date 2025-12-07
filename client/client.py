@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import socket
 import threading
 import tkinter as tk
@@ -8,12 +9,16 @@ import time
 HOST = 'iulianddd.ddns.net'
 PORT = 5555
 
+# --- TEMĂ MODERN ---
+FONT_FAMILY = "Segoe UI"  # Font modern, care suporta diacritice pe Windows
+FONT_SIZE = 10
+
 COLOR_BG = "#f0f2f5"
 COLOR_CHAT_BG = "#ffffff"
-COLOR_TEXT = "#1c1e21"
-COLOR_BTN = "#0084ff"
+COLOR_TEXT = "#212529"
+COLOR_BTN = "#007bff"  # Albastru primar
 COLOR_BTN_TEXT = "#ffffff"
-COLOR_AI = "#6c757d"
+COLOR_AI = "#495057"  # Gri închis (pentru AI)
 COLOR_USER = "#000000"
 
 PERSONALITIES = [
@@ -43,7 +48,6 @@ class ClientGui:
         self.current_ai_model = "Necunoscut"
         self.current_ai_role = "Expert IT (Cortex)"
 
-        # Apelam GUI loop direct din firul principal
         self.gui_loop()
 
     def gui_loop(self):
@@ -52,7 +56,6 @@ class ClientGui:
         self.win.configure(bg=COLOR_BG)
         self.win.geometry("450x650")
 
-        # 1. Conectare (Mutată aici, dar nu blochează mainloop încă)
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(5)
@@ -68,21 +71,21 @@ class ClientGui:
 
         header = tk.Frame(self.win, bg="white", height=50)
         header.pack(fill='x', side='top')
-        tk.Label(header, text="Echo Team Chat", font=("Helvetica", 12, "bold"), bg="white", fg=COLOR_TEXT).pack(pady=10)
+        tk.Label(header, text="Echo Team Chat", font=(FONT_FAMILY, 12, "bold"), bg="white", fg=COLOR_TEXT).pack(pady=10)
 
         frame_chat = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=10)
         frame_chat.pack(expand=True, fill='both')
 
-        self.text_area = scrolledtext.ScrolledText(frame_chat, bg=COLOR_CHAT_BG, fg=COLOR_TEXT, font=("Helvetica", 10),
-                                                   bd=0, padx=10, pady=10)
+        self.text_area = scrolledtext.ScrolledText(frame_chat, bg=COLOR_CHAT_BG, fg=COLOR_TEXT,
+                                                   font=(FONT_FAMILY, FONT_SIZE), bd=0, padx=10, pady=10)
         self.text_area.pack(expand=True, fill='both')
         self.text_area.config(state='disabled')
 
-        self.text_area.tag_config('normal', font=("Helvetica", 10))
-        self.text_area.tag_config('ai_tag', foreground=COLOR_AI, font=("Helvetica", 10, "italic"))
-        self.text_area.tag_config('sys_tag', foreground="red", font=("Helvetica", 9))
-        self.text_area.tag_config('me_tag', foreground=COLOR_BTN, font=("Helvetica", 10, "bold"))
-        self.text_area.tag_config('bold', font=("Helvetica", 10, "bold"))
+        self.text_area.tag_config('normal', font=(FONT_FAMILY, FONT_SIZE))
+        self.text_area.tag_config('ai_tag', foreground=COLOR_AI, font=(FONT_FAMILY, FONT_SIZE, "italic"))
+        self.text_area.tag_config('sys_tag', foreground="#dc3545", font=(FONT_FAMILY, 9))
+        self.text_area.tag_config('me_tag', foreground=COLOR_BTN, font=(FONT_FAMILY, FONT_SIZE, "bold"))
+        self.text_area.tag_config('bold', font=(FONT_FAMILY, FONT_SIZE, "bold"))
 
         self.text_area.config(state='normal')
         self.text_area.insert('end', f"⚠ Conectat la: {self.host_address}:{PORT}\n", 'sys_tag')
@@ -93,46 +96,49 @@ class ClientGui:
         input_frame = tk.Frame(self.win, bg="white", pady=10, padx=10)
         input_frame.pack(fill='x', side='bottom')
 
-        tk.Button(input_frame, text="⚙", bg="#e4e6eb", fg="black", bd=0, padx=10, pady=5,
+        tk.Button(input_frame, text="⚙", bg="#e9ecef", fg=COLOR_TEXT, font=(FONT_FAMILY, 10), bd=0, padx=10, pady=5,
                   command=self.open_settings).pack(side="left", padx=(0, 5))
 
-        self.input_area = tk.Entry(input_frame, bg="#f0f2f5", fg="black", font=("Helvetica", 11), relief="flat", bd=5)
+        self.input_area = tk.Entry(input_frame, bg="#e9ecef", fg=COLOR_TEXT, font=(FONT_FAMILY, 11), relief="flat",
+                                   bd=5)
         self.input_area.pack(side="left", fill='x', expand=True)
         self.input_area.bind("<Return>", self.write)
 
-        tk.Button(input_frame, text="Trimite", bg=COLOR_BTN, fg="white", font=("Helvetica", 10, "bold"), bd=0, padx=15,
+        tk.Button(input_frame, text="Trimite", bg=COLOR_BTN, fg=COLOR_BTN_TEXT, font=(FONT_FAMILY, 10, "bold"), bd=0,
+                  padx=15,
                   pady=5, command=self.write).pack(side="right", padx=(5, 0))
 
         self.gui_done = True
         self.win.protocol("WM_DELETE_WINDOW", self.stop)
 
-        # MUTAT: Pornim firul de RECEIVE AICI
         receive_thread = threading.Thread(target=self.receive)
         receive_thread.start()
 
-        self.win.mainloop()  # Acesta ruleaza in firul principal
+        self.win.mainloop()
 
     def open_settings(self):
-        # AICI NU MAI DA EROARE, deoarece variabila se creeaza in firul principal
         top = tk.Toplevel(self.win)
         top.title("Setări Agent AI")
         top.geometry("350x300")
-        top.configure(bg="white")
+        top.configure(bg=COLOR_CHAT_BG)
 
-        tk.Label(top, text="Alege Rolul AI:", font=("Helvetica", 10, "bold"), bg="white").pack(pady=(20, 5))
+        tk.Label(top, text="Alege Rolul AI:", font=(FONT_FAMILY, 10, "bold"), bg=COLOR_CHAT_BG, fg=COLOR_TEXT).pack(
+            pady=(20, 5))
 
-        self.pers_var = tk.StringVar(top, value=self.current_ai_role)  # Adaugam 'top' ca master
-        combo = ttk.Combobox(top, textvariable=self.pers_var, values=PERSONALITIES, state="readonly", width=30)
+        self.pers_var = tk.StringVar(top, value=self.current_ai_role)
+        combo = ttk.Combobox(top, textvariable=self.pers_var, values=PERSONALITIES, state="readonly", width=30,
+                             font=(FONT_FAMILY, 10))
         combo.pack(pady=5)
 
-        tk.Label(top, text="Limitează Istoricul (Mesaje, 5-50):", font=("Helvetica", 10, "bold"), bg="white").pack(
-            pady=(15, 5))
+        tk.Label(top, text="Limitează Istoricul (Mesaje, 5-50):", font=(FONT_FAMILY, 10, "bold"), bg=COLOR_CHAT_BG,
+                 fg=COLOR_TEXT).pack(pady=(15, 5))
 
-        self.cache_var = tk.StringVar(top, value="30")  # Adaugam 'top' ca master
-        cache_input = tk.Entry(top, textvariable=self.cache_var, width=10)
+        self.cache_var = tk.StringVar(top, value="30")
+        cache_input = tk.Entry(top, textvariable=self.cache_var, width=10, font=(FONT_FAMILY, 10))
         cache_input.pack(pady=5)
 
-        tk.Button(top, text="Aplică Schimbarea", bg=COLOR_BTN, fg="white", bd=0, pady=5,
+        tk.Button(top, text="Aplică Schimbarea", bg=COLOR_BTN, fg=COLOR_BTN_TEXT, font=(FONT_FAMILY, 10, "bold"), bd=0,
+                  pady=5,
                   command=self.apply_all_settings).pack(pady=15)
 
     def apply_all_settings(self):

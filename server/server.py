@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import socket
 import threading
 import time
@@ -139,13 +140,19 @@ def get_ai_decision(trigger_type="review", explicit_msg=None):
 
     ai_raw_text = call_gemini(context_msgs, trigger_msg=trigger_text)
 
-    clean_text = ai_raw_text.strip()
-    if clean_text.endswith("."): clean_text = clean_text[:-1]
+    clean_text = ai_raw_text.strip().upper()
 
-    if clean_text.upper() == "PASS":
+    if clean_text == "PASS" or clean_text == "PASS.":
         print(f"Gemini ({current_prompt_key}) -> PASS")
         return None
-    return ai_raw_text
+
+    if "ALERTA" in clean_text:
+        return ai_raw_text
+
+    if len(clean_text) > 4:
+        return ai_raw_text
+
+    return None
 
 
 def broadcast(message, is_binary=False):
@@ -189,7 +196,7 @@ def handle_client(client):
                 if parts[1] == "PERS" and parts[2] in PROMPTS:
                     current_prompt_key = parts[2]
                     active_system_instruction = PROMPTS[parts[2]]
-                    broadcast(f"SYS:PERSONALITATE SCHIMBATA IN: {current_prompt_key}")
+                    broadcast(f"SYS:PERSONALITATE SCHIMBATA ÎN: {current_prompt_key}")
                 elif parts[1] == "BUFF":
                     try:
                         BUFFER_SIZE = int(parts[2])
