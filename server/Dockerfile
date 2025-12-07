@@ -5,4 +5,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server.py .
 EXPOSE 5555
 ENV PYTHONUNBUFFERED=1
-CMD ["python", "server.py"], "server.py"]
+CMD ["python", "server.py"]
