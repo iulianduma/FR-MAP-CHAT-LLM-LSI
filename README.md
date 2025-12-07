@@ -1,0 +1,2 @@
+# FR-MAP-CHAT-LLM-LSI
+ llm vs  LSI
