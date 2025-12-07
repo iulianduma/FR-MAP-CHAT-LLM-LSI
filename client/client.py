@@ -35,6 +35,24 @@ class ClientGui:
         if not self.nickname:
             sys.exit()
 
+        self.gui_done = False
+        self.running = True
+
+        self.host_address = HOST
+        self.connection_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        self.current_ai_model = "Necunoscut"
+        self.current_ai_role = "Expert IT (Cortex)"
+
+        # Apelam GUI loop direct din firul principal
+        self.gui_loop()
+
+    def gui_loop(self):
+        self.win = tk.Tk()
+        self.win.title(f"Team Chat - {self.nickname}")
+        self.win.configure(bg=COLOR_BG)
+        self.win.geometry("450x650")
+
+        # 1. Conectare (Mutată aici, dar nu blochează mainloop încă)
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(5)
@@ -45,27 +63,8 @@ class ClientGui:
                                  f"Nu m-am putut conecta la serverul: {HOST}\n\n"
                                  f"Verifică:\n1. Dacă serverul Docker rulează.\n2. Dacă adresa IP este corectă.\n3. Port Forwarding (5555)."
                                  )
+            self.win.destroy()
             sys.exit()
-
-        self.gui_done = False
-        self.running = True
-
-        self.host_address = HOST
-        self.connection_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        self.current_ai_model = "Necunoscut"
-        self.current_ai_role = "Expert IT (Cortex)"
-
-        gui_thread = threading.Thread(target=self.gui_loop)
-        receive_thread = threading.Thread(target=self.receive)
-
-        gui_thread.start()
-        receive_thread.start()
-
-    def gui_loop(self):
-        self.win = tk.Tk()
-        self.win.title(f"Team Chat - {self.nickname}")
-        self.win.configure(bg=COLOR_BG)
-        self.win.geometry("450x650")
 
         header = tk.Frame(self.win, bg="white", height=50)
         header.pack(fill='x', side='top')
@@ -106,9 +105,15 @@ class ClientGui:
 
         self.gui_done = True
         self.win.protocol("WM_DELETE_WINDOW", self.stop)
-        self.win.mainloop()
+
+        # MUTAT: Pornim firul de RECEIVE AICI
+        receive_thread = threading.Thread(target=self.receive)
+        receive_thread.start()
+
+        self.win.mainloop()  # Acesta ruleaza in firul principal
 
     def open_settings(self):
+        # AICI NU MAI DA EROARE, deoarece variabila se creeaza in firul principal
         top = tk.Toplevel(self.win)
         top.title("Setări Agent AI")
         top.geometry("350x300")
@@ -116,14 +121,14 @@ class ClientGui:
 
         tk.Label(top, text="Alege Rolul AI:", font=("Helvetica", 10, "bold"), bg="white").pack(pady=(20, 5))
 
-        self.pers_var = tk.StringVar(value=self.current_ai_role)
+        self.pers_var = tk.StringVar(top, value=self.current_ai_role)  # Adaugam 'top' ca master
         combo = ttk.Combobox(top, textvariable=self.pers_var, values=PERSONALITIES, state="readonly", width=30)
         combo.pack(pady=5)
 
         tk.Label(top, text="Limitează Istoricul (Mesaje, 5-50):", font=("Helvetica", 10, "bold"), bg="white").pack(
             pady=(15, 5))
 
-        self.cache_var = tk.StringVar(value="30")
+        self.cache_var = tk.StringVar(top, value="30")  # Adaugam 'top' ca master
         cache_input = tk.Entry(top, textvariable=self.cache_var, width=10)
         cache_input.pack(pady=5)
 
