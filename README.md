@@ -1,9 +1,3 @@
-Iată versiunea completă a fișierului README.md, actualizată cu toate funcționalitățile (AI local, Docker, CI/CD), dar formatată într-un stil academic/profesional, fără emoticoane sau iconițe, așa cum ai cerut.
-
-Copiaza conținutul de mai jos în fișierul README.md din repository-ul tău.
-
-Markdown
-
 # AI-Enhanced Team Chat (Proiect LSI)
 
 O platformă de comunicare în timp real, bazată pe arhitectură Client-Server (TCP Sockets), care integrează un Agent Inteligent local pentru asistență tehnică și moderare a discuției. Proiectul este containerizat folosind Docker și utilizează modelul Llama 3 (via Ollama) pentru generarea răspunsurilor, asigurând confidențialitatea datelor.
