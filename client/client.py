@@ -5,21 +5,34 @@ import tkinter as tk
 from tkinter import simpledialog, scrolledtext, ttk, messagebox
 import sys
 import time
+import hashlib
 
 HOST = 'iulianddd.ddns.net'
 PORT = 5555
 
-# --- TEMĂ MODERN ---
-FONT_FAMILY = "Segoe UI"  # Font modern, care suporta diacritice pe Windows
+# --- TEMĂ MODERN INDIGO/ALBASTRU DESCHIS ---
+FONT_FAMILY = "Segoe UI"
 FONT_SIZE = 10
 
-COLOR_BG = "#f0f2f5"
+COLOR_BG = "#e8efff"  # Indigo foarte deschis (nou)
 COLOR_CHAT_BG = "#ffffff"
 COLOR_TEXT = "#212529"
-COLOR_BTN = "#007bff"  # Albastru primar
+COLOR_BTN = "#4361ee"
 COLOR_BTN_TEXT = "#ffffff"
-COLOR_AI = "#495057"  # Gri închis (pentru AI)
-COLOR_USER = "#000000"
+
+COLOR_AI_TEXT = "#495057"
+
+
+def get_user_color(nickname):
+    hash_object = hashlib.sha1(nickname.encode('utf-8'))
+    hex_dig = hash_object.hexdigest()
+
+    r = int(hex_dig[0:2], 16) % 150 + 50
+    g = int(hex_dig[2:4], 16) % 150 + 50
+    b = int(hex_dig[4:6], 16) % 150 + 50
+
+    return f"#{r:02x}{g:02x}{b:02x}"
+
 
 PERSONALITIES = [
     "Expert IT (Cortex)", "Expert Contabil", "Avocat Corporatist",
@@ -47,6 +60,7 @@ class ClientGui:
         self.connection_time = time.strftime("%Y-%m-%d %H:%M:%S")
         self.current_ai_model = "Necunoscut"
         self.current_ai_role = "Expert IT (Cortex)"
+        self.user_tags = {}  # Dictionary pentru a stoca culorile dinamice
 
         self.gui_loop()
 
@@ -82,7 +96,7 @@ class ClientGui:
         self.text_area.config(state='disabled')
 
         self.text_area.tag_config('normal', font=(FONT_FAMILY, FONT_SIZE))
-        self.text_area.tag_config('ai_tag', foreground=COLOR_AI, font=(FONT_FAMILY, FONT_SIZE, "italic"))
+        self.text_area.tag_config('ai_style', foreground=COLOR_AI_TEXT, font=(FONT_FAMILY, FONT_SIZE, "italic"))
         self.text_area.tag_config('sys_tag', foreground="#dc3545", font=(FONT_FAMILY, 9))
         self.text_area.tag_config('me_tag', foreground=COLOR_BTN, font=(FONT_FAMILY, FONT_SIZE, "bold"))
         self.text_area.tag_config('bold', font=(FONT_FAMILY, FONT_SIZE, "bold"))
@@ -206,10 +220,11 @@ class ClientGui:
                         if len(parts) > 1:
                             role = parts[0] + ")"
                             msg = parts[1]
-                            self.text_area.insert('end', role + ": ", 'ai_tag')
-                            self.text_area.insert('end', msg + "\n", 'normal')
+                            # Aplică stilul gri-italic (ai_style) la nume și la text
+                            self.text_area.insert('end', role + ": ", 'ai_style')
+                            self.text_area.insert('end', msg + "\n", 'ai_style')
                         else:
-                            self.text_area.insert('end', message + "\n", 'ai_tag')
+                            self.text_area.insert('end', message + "\n", 'ai_style')
 
                     else:
                         if ":" in message:
@@ -217,12 +232,25 @@ class ClientGui:
                             u_name = parts[0]
                             u_msg = parts[1]
 
-                            if u_name == self.nickname:
-                                self.text_area.insert('end', f"{u_name}: ", 'me_tag')
-                            else:
-                                self.text_area.insert('end', u_name + ": ", 'bold')
+                            # Logica pentru generarea tag-urilor dinamice
+                            if u_name not in self.user_tags:
+                                self.user_tags[u_name] = get_user_color(u_name)
+                                self.text_area.tag_config(f'user_name_{u_name}', foreground=self.user_tags[u_name],
+                                                          font=(FONT_FAMILY, FONT_SIZE, "bold"))
+                                self.text_area.tag_config(f'user_msg_{u_name}', foreground=self.user_tags[u_name],
+                                                          font=(FONT_FAMILY, FONT_SIZE))
 
-                            self.text_area.insert('end', u_msg + "\n", 'normal')
+                            user_name_tag = f'user_name_{u_name}'
+                            user_msg_tag = f'user_msg_{u_name}'
+
+                            if u_name == self.nickname:
+                                # Userul local: Nume colorat (blue), text standard (negru)
+                                self.text_area.insert('end', f"{u_name}: ", 'me_tag')
+                                self.text_area.insert('end', u_msg + "\n", 'normal')
+                            else:
+                                # User extern: Nume și text cu aceeași culoare pastelată
+                                self.text_area.insert('end', u_name + ": ", user_name_tag)
+                                self.text_area.insert('end', u_msg + "\n", user_msg_tag)
                         else:
                             self.text_area.insert('end', message + "\n", 'normal')
 
