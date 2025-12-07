@@ -4,7 +4,6 @@ import time
 import os
 import sys
 
-# --- IMPORT GEMINI ---
 try:
     import google.generativeai as genai
 except ImportError:
@@ -22,15 +21,12 @@ if not GEMINI_API_KEY:
     print("EROARE: Variabila de mediu GEMINI_API_KEY nu este setata!")
     sys.exit(1)
 
-# Configurare initiala
 genai.configure(api_key=GEMINI_API_KEY)
 
-# --- SELECTARE DINAMICĂ MODEL (OPTIMIZATĂ) ---
 ACTIVE_MODEL_NAME = ""
 
 
 def pick_best_model():
-    """Selectează cel mai bun model Flash disponibil (2.5 > 2.0 > 1.5)."""
     global ACTIVE_MODEL_NAME
     print("--- Cautare modele disponibile ---")
     try:
@@ -39,32 +35,28 @@ def pick_best_model():
             if 'generateContent' in m.supported_generation_methods:
                 available_models.append(m.name)
 
-        # Definim ordinea de priorități (de la cel mai bun la fallback)
         priority_list = [
-            "models/gemini-2.5-flash",  # Cel mai nou si rapid
-            "models/gemini-2.0-flash",  # Foarte stabil
-            "models/gemini-1.5-flash",  # Clasicul
-            "models/gemini-flash-latest",  # Alias generic
-            "models/gemini-2.5-pro",  # Puternic, dar poate mai lent
-            "models/gemini-pro-latest"  # Fallback sigur
+            "models/gemini-2.5-flash",
+            "models/gemini-2.0-flash",
+            "models/gemini-1.5-flash",
+            "models/gemini-flash-latest",
+            "models/gemini-2.5-pro",
+            "models/gemini-pro-latest"
         ]
 
         chosen = None
 
-        # 1. Căutăm exact modelele din lista de priorități
         for priority in priority_list:
             if priority in available_models:
                 chosen = priority
                 break
 
-        # 2. Dacă nu găsim nimic exact, căutăm orice conține "flash"
         if not chosen:
             for m in available_models:
                 if "flash" in m.lower():
                     chosen = m
                     break
 
-        # 3. Ultimul resort: primul model disponibil
         if not chosen and available_models:
             chosen = available_models[0]
 
@@ -81,14 +73,13 @@ def pick_best_model():
         print(f"Se incearca fallback fortat la: {ACTIVE_MODEL_NAME}")
 
 
-# Rulam selectia la pornire
 pick_best_model()
 
 clients = []
 last_message_time = time.time()
 conversation_history = []
+HISTORY_LIMIT = 30
 
-# --- DEFINIȚII PERSONALITĂȚI ---
 PROMPTS = {
     "Expert IT (Cortex)": "Ești Cortex, Arhitect Software Senior. Analizezi tehnic. Dacă e banal -> PASS. Dacă e risc -> INTERVINE. La [SILENCE_DETECTED] propui soluții.",
     "Expert Contabil": "Ești Contabil. Dacă nu sunt bani la mijloc -> PASS. Altfel -> INTERVINE.",
@@ -116,7 +107,6 @@ current_prompt_key = "Expert IT (Cortex)"
 active_system_instruction = PROMPTS[current_prompt_key]
 
 
-# --- LOGICĂ GEMINI ---
 def call_gemini(messages_history, trigger_msg=None):
     try:
         model = genai.GenerativeModel(
@@ -139,7 +129,7 @@ def call_gemini(messages_history, trigger_msg=None):
 
 def get_ai_decision(trigger_type="review", explicit_msg=None):
     global conversation_history
-    context_msgs = conversation_history[-20:]
+    context_msgs = conversation_history[-HISTORY_LIMIT:]
 
     trigger_text = explicit_msg
     if trigger_type == "silence":
@@ -149,7 +139,6 @@ def get_ai_decision(trigger_type="review", explicit_msg=None):
 
     ai_raw_text = call_gemini(context_msgs, trigger_msg=trigger_text)
 
-    # Clean response
     clean_text = ai_raw_text.strip()
     if clean_text.endswith("."): clean_text = clean_text[:-1]
 
@@ -159,7 +148,6 @@ def get_ai_decision(trigger_type="review", explicit_msg=None):
     return ai_raw_text
 
 
-# --- SERVER ---
 def broadcast(message, is_binary=False):
     if not is_binary:
         message = message.encode('utf-8')
@@ -187,7 +175,7 @@ def silence_watchdog():
 
 
 def handle_client(client):
-    global last_message_time, active_system_instruction, current_prompt_key, BUFFER_SIZE
+    global last_message_time, active_system_instruction, current_prompt_key, BUFFER_SIZE, HISTORY_LIMIT
     while True:
         try:
             message = client.recv(BUFFER_SIZE)
@@ -208,10 +196,17 @@ def handle_client(client):
                         broadcast(f"SYS:BUFFER SERVER SETAT LA: {BUFFER_SIZE}")
                     except:
                         pass
+                elif parts[1] == "CACHE":
+                    try:
+                        new_limit = int(parts[2])
+                        HISTORY_LIMIT = new_limit
+                        broadcast(f"SYS:LIMITA ISTORIC SETATĂ LA: {HISTORY_LIMIT}")
+                    except:
+                        pass
             else:
                 broadcast(message, is_binary=True)
                 conversation_history.append(decoded_msg)
-                if len(conversation_history) > 30: conversation_history.pop(0)
+                if len(conversation_history) > HISTORY_LIMIT: conversation_history.pop(0)
 
                 if not decoded_msg.startswith("SYS:") and "AI (" not in decoded_msg:
                     threading.Thread(target=run_ai_review, args=(decoded_msg,)).start()
@@ -238,6 +233,8 @@ def receive():
         clients.append(client)
         print(f"Conectat: {address}")
         client.send(f"SYS:CONECTAT LA SERVER. ROL: {current_prompt_key}".encode('utf-8'))
+        client.send(f"SYS:AI ACTIV: {ACTIVE_MODEL_NAME}".encode('utf-8'))
+        client.send(f"SYS:ROL INIȚIAL: {current_prompt_key}".encode('utf-8'))
         threading.Thread(target=handle_client, args=(client,)).start()
 
 
