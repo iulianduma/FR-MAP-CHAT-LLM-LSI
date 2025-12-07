@@ -11,27 +11,84 @@ except ImportError:
     print("EROARE: Libraria 'google-generativeai' lipseste.")
     sys.exit(1)
 
-# IMPORTANT PENTRU DOCKER:
-# 0.0.0.0 inseamna ca asculta pe toate interfetele de retea
 HOST = '0.0.0.0'
 PORT = 5555
 BUFFER_SIZE = 1024
 SILENCE_THRESHOLD = 30
 
-# Aceasta linie citeste variabila din mediul rularii
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
     print("EROARE: Variabila de mediu GEMINI_API_KEY nu este setata!")
     sys.exit(1)
 
+# Configurare initiala
 genai.configure(api_key=GEMINI_API_KEY)
+
+# --- SELECTARE DINAMICĂ MODEL ---
+ACTIVE_MODEL_NAME = ""
+
+
+def pick_best_model():
+    """Interogheaza API-ul pentru a gasi cel mai bun model disponibil."""
+    global ACTIVE_MODEL_NAME
+    print("--- Cautare modele disponibile ---")
+    try:
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+                print(f"Gasit: {m.name}")
+
+        # Logica de prioritate: Flash > 1.5 Pro > Pro > Orice altceva
+        chosen = None
+
+        # 1. Cautam Flash (cel mai rapid)
+        for m in available_models:
+            if "flash" in m.lower() and "1.5" in m:
+                chosen = m
+                break
+
+        # 2. Daca nu, cautam 1.5 Pro
+        if not chosen:
+            for m in available_models:
+                if "pro" in m.lower() and "1.5" in m:
+                    chosen = m
+                    break
+
+        # 3. Fallback la gemini-pro clasic
+        if not chosen:
+            for m in available_models:
+                if "gemini-pro" in m:
+                    chosen = m
+                    break
+
+        # 4. Ultimul resort
+        if not chosen and available_models:
+            chosen = available_models[0]
+
+        if chosen:
+            ACTIVE_MODEL_NAME = chosen
+            print(f"SUCCESS: Model selectat automat: {ACTIVE_MODEL_NAME}")
+        else:
+            print("CRITIC: Nu s-a gasit niciun model compatibil!")
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"Eroare la listarea modelelor: {e}")
+        # Fallback hardcodat in caz de eroare grava la listare
+        ACTIVE_MODEL_NAME = "models/gemini-1.5-flash"
+        print(f"Se incearca fallback fortat la: {ACTIVE_MODEL_NAME}")
+
+
+# Rulam selectia la pornire
+pick_best_model()
 
 clients = []
 last_message_time = time.time()
 conversation_history = []
 
-# --- DEFINIȚII PERSONALITĂȚI (Aceleași ca înainte) ---
+# --- DEFINIȚII PERSONALITĂȚI ---
 PROMPTS = {
     "Expert IT (Cortex)": "Ești Cortex, Arhitect Software Senior. Analizezi tehnic. Dacă e banal -> PASS. Dacă e risc -> INTERVINE. La [SILENCE_DETECTED] propui soluții.",
     "Expert Contabil": "Ești Contabil. Dacă nu sunt bani la mijloc -> PASS. Altfel -> INTERVINE.",
@@ -62,8 +119,9 @@ active_system_instruction = PROMPTS[current_prompt_key]
 # --- LOGICĂ GEMINI ---
 def call_gemini(messages_history, trigger_msg=None):
     try:
+        # Folosim modelul detectat dinamic
         model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
+            model_name=ACTIVE_MODEL_NAME,
             system_instruction=active_system_instruction
         )
         gemini_history = []
