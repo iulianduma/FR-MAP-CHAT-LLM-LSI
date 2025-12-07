@@ -1,123 +1,110 @@
-# FR-MAP-CHAT-LLM-LSI / AI-Enhanced Team Chat (LSI Project)
+# AI-Enhanced Team Chat (Proiect LSI)
 
-> O platformă de comunicare în timp real, asistată de un Agent AI local, construită pe arhitectură TCP Socket și Docker.
+O platformă de comunicare în timp real, bazată pe arhitectură Client-Server (TCP Sockets), care integrează un Agent Inteligent local pentru asistență tehnică și moderare a discuției. Proiectul este containerizat folosind Docker și utilizează modelul Llama 3 (via Ollama) pentru generarea răspunsurilor, asigurând confidențialitatea datelor.
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)
-![AI](https://img.shields.io/badge/AI-Ollama%20(Llama3)-orange)
-![Status](https://img.shields.io/badge/Status-Active%20Development-green)
+## Arhitectura Sistemului
 
-## Despre Proiect
+Sistemul este compus din trei entități principale interconectate:
 
-Acest proiect nu este doar un simplu chat. Este un experiment de integrare a unui **LLM (Large Language Model)** într-un flux de conversație TCP clasic. 
+1.  **Clientul (Python/Tkinter):** Interfața grafică utilizată de membrii echipei. Se conectează la server prin TCP.
+2.  **Serverul (Python/Docker):** Gestionează conexiunile, difuzează mesajele (broadcasting) și integrează logica AI.
+3.  **Modulul AI (Ollama):** Un serviciu care rulează modelul Llama 3 local și comunică cu serverul prin HTTP.
 
-Sistemul include un "participant" virtual (**AI-Lead**) care:
-1.  **Monitorează discuția:** Oferă sfaturi tehnice la cerere.
-2.  **Previne liniștea:** Dacă nimeni nu scrie timp de X secunde, AI-ul generează automat un subiect de discuție relevant.
-3.  **Rulează Local:** Folosește `Ollama` și modelul `Llama 3`, asigurând confidențialitatea datelor (niciun mesaj nu părăsește serverul).
-
-##  Arhitectură
-
-Sistemul este împărțit în containere Docker pentru izolare și scalabilitate:
+### Diagrama de Flux
 
 ```mermaid
-
 graph TD
-    Client["Client Desktop (Tkinter)"] -->|TCP Socket :5555| Server["Python Server Container"]
-    Server -->|HTTP Request| Ollama["Ollama Container (Llama 3)"]
+    Client["Client Desktop"] -->|TCP Socket :5555| Server["Container Server Python"]
+    Server -->|HTTP Request| Ollama["Container Ollama (Llama 3)"]
     Ollama -->|AI Response| Server
     Server -->|Broadcast| Client
-    Cron["Auto-Deploy Script"] -->|Git Pull| GitHub["GitHub Repo (Main)"]
-	
-##  Structura Proiectului
+    Script["Script Auto-Deploy"] -->|Git Pull| GitHub["Repository GitHub (Main)"]
+Structura Proiectului
+client/
 
-FR-MAP-CHAT-LLM-LSI/
-├── client/
-│   └── client.py          # Interfața Grafică (rulează la utilizator)
-├── server/
-│   ├── Dockerfile         # Configurare imagine Python
-│   ├── docker-compose.yml # Orchestare (Server + Ollama)
-│   └── server.py          # Logică TCP + Integrare AI
-├── auto_deploy.sh         # Script de actualizare automată (CI/CD)
-├── .env.example           # Model variabile de mediu
-└── README.md              # Documentație
+client.py - Aplicația client cu interfață grafică.
 
+server/
 
+server.py - Codul sursă al serverului (include clasa LLMParticipant).
 
+Dockerfile - Configurația pentru construirea imaginii Docker a serverului.
 
-##  Ghid de Instalare
+docker-compose.yml - Orchestrarea serviciilor (Server + Ollama).
 
-1. Pentru Developeri (Clientul)
-Dacă vrei doar să te conectezi la chat:
+auto_deploy.sh - Script pentru actualizarea automată a serverului din GitHub.
 
-Clonează proiectul:
+requirements.txt - Lista dependențelor Python necesare.
 
-Bash
+.env.example - Model pentru variabilele de mediu.
 
-git clone [https://github.com/iulianduma/FR-MAP-CHAT-LLM-LSI.git](https://github.com/iulianduma/FR-MAP-CHAT-LLM-LSI.git)
-cd FR-MAP-CHAT-LLM-LSI/client
-Configurează: Deschide client.py și editează linia IP_SERVER:
+Cerinte de Sistem
+Server: Ubuntu (sau altă distribuție Linux) cu Docker și Docker Compose instalate. Minim 8GB RAM recomandat pentru rularea modelului AI.
 
-iulianduma.ddns.net (pentru conectare la serverul echipei)
+Client: Orice sistem de operare (Windows, Linux, macOS) cu Python 3.9+ instalat.
 
-127.0.0.1 (dacă testezi serverul local)
+Ghid de Instalare si Configurare
+1. Configurare Server (Productie)
+Urmați acești pași pe serverul unde va rula aplicația:
 
-Rulează:
-
-Bash
-
-python client.py
-2. Pentru Server (Administrator)
-Pașii necesari pe serverul Ubuntu de producție:
-
-Configurare Mediu: Creează un fișier .env bazat pe exemplul oferit:
+Creați fișierul .env în rădăcina proiectului și adăugați următoarele configurații:
 
 Ini, TOML
 
 HOST=0.0.0.0
 PORT=5555
-OLLAMA_HOST=http://ollama:11434
-Pornire Servicii:
+OLLAMA_HOST=http://ollama:11434/v1
+Porniți serviciile folosind Docker Compose:
 
 Bash
 
-docker-compose up -d --build
-Inițializare AI (Doar prima dată): Trebuie descărcat modelul Llama 3 în containerul Ollama:
+docker-compose -f server/docker-compose.yml up -d --build
+Descărcați modelul AI (această comandă se execută o singură dată):
 
 Bash
 
 docker exec -it ollama_backend ollama pull llama3
-  
-  Cum funcționează AI-ul?
-Clasa LLMParticipant din server acționează ca un wrapper peste API-ul Ollama.
+2. Configurare Client (Local)
+Pentru a rula aplicația de chat pe stația de lucru locală:
 
-Trigger de Răspuns: Dacă menționezi "AI" sau "ajutor", botul va prelua contextul (ultimele 10 mesaje) și va răspunde.
+Clonați repository-ul.
 
-Trigger de Liniște: Un thread separat (silence_watchdog) numără secundele de la ultimul mesaj. Dacă depășește limita (ex: 60 sec), cere LLM-ului o întrebare de "spargere a gheții".
+Deschideți fișierul client/client.py.
 
- Reguli de Contribuție (Git Workflow)
-Pentru a nu strica versiunea de producție (care se actualizează automat), respectați regulile:
+Modificați variabila IP_SERVER:
 
- NU lucra pe main. Branch-ul main este protejat și rulează live pe server.
+Utilizați iulianddd.ddns.net (sau IP-ul serverului) pentru conectare remote.
 
-Creează un branch pentru orice modificare:
+Utilizați 127.0.0.1 doar pentru testare locală.
+
+Rulați clientul:
 
 Bash
 
-git checkout -b feature-numele-tau
-Testează local codul.
+python client/client.py
+Functionarea Agentului AI
+Serverul include o clasă specializată LLMParticipant care gestionează interacțiunea cu modelul de limbaj.
 
-Fă Push și deschide un Pull Request pe GitHub.
+Comportament:
 
-După aprobare și Merge, serverul își va face update singur în ~5 minute.
+Raspuns la comanda: Dacă un mesaj conține cuvântul "AI" sau "@AI", agentul va analiza ultimele mesaje din context și va răspunde.
 
-️ Comenzi Utile (Server)
-Vezi logurile serverului: docker logs -f python_chat_server
+Monitorizare liniste: Un thread separat verifică timpul scurs de la ultimul mesaj. Dacă trec 60 de secunde fără activitate, AI-ul va genera automat o întrebare tehnică sau un subiect de discuție pentru a stimula conversația.
 
-Vezi logurile AI: docker logs -f ollama_backend
+Fluxul de Lucru (Git Workflow)
+Pentru menținerea stabilității mediului de producție, se impun următoarele reguli:
 
-Restart forțat: docker-compose restart
+Branch-ul Main: Este protejat. Codul din main este cel care rulează activ pe server.
 
-Update manual: ./auto_deploy.sh
+Dezvoltare: Orice modificare se face pe un branch separat (ex: feature-nume-functionalitate).
 
-Proiect realizat pentru Laboratorul de Sisteme Inteligente.
+Deployment: Actualizarea serverului se face automat (prin scriptul auto_deploy.sh) sau manual după ce modificările au fost integrate în main prin Pull Request.
+
+Comenzi Utile
+Vizualizare log-uri server: docker logs -f python_chat_server
+
+Vizualizare log-uri AI: docker logs -f ollama_backend
+
+Actualizare manuală server: ./auto_deploy.sh
+
+Oprire servicii: docker-compose down
