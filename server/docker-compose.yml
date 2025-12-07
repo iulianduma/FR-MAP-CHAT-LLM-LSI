@@ -6,7 +6,6 @@ services:
     container_name: python_chat_server
     ports:
       - "${PORT:-5555}:5555"
-    # ADAUGĂ ACEASTA LINIE:
     env_file:
       - .env
     restart: always
