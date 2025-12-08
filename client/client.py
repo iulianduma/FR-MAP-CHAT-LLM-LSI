@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import socket
 import threading
-import customtkinter as ctk
-from customtkinter import simpledialog, CTkTextbox, CTkLabel, CTkButton, CTkOptionMenu, CTkFrame
-from tkinter import messagebox
+import tkinter as tk
+from tkinter import simpledialog, scrolledtext, ttk, messagebox
 import sys
 import time
 import hashlib
@@ -11,26 +10,26 @@ import hashlib
 HOST = 'iulianddd.ddns.net'
 PORT = 5555
 
-# --- TEMĂ LIGHT MODE (CustomTkinter) ---
+# --- TEMĂ TKINTER SIMPLĂ ȘI FUNCTIONALĂ (BAZATĂ PE DARK MODE) ---
 FONT_FAMILY = "Segoe UI"
-FONT_SIZE = 12
+FONT_SIZE = 10
 
-# Culori Light Mode (conform standardelor CTk)
-BG_COLOR = "#ededed"  # Fundal fereastra
-CHAT_BG_COLOR = "#ffffff"  # Fundal zona de chat
-TEXT_COLOR = "#000000"  # Text negru
-AI_TEXT_COLOR = "#6c757d"  # Gri (pentru citatul AI)
+# Culori pentru stabilitate și lizibilitate
+COLOR_BG = "#2e2e2e"  # Fundal fereastra (Gri închis)
+COLOR_CHAT_BG = "#3c3c3c"  # Fundal zona de text
+COLOR_TEXT = "#f0f0f0"  # Text alb
+COLOR_BTN_TEXT = "#000000"
+COLOR_AI_TEXT = "#90caf9"  # Albastru deschis pentru AI
 
 # Setată dinamic
 ACCENT_COLOR = "#4361ee"
 
 
 def get_user_color(nickname):
-    """Generează o culoare pastelată unică pe baza numelui utilizatorului (pentru widget-urile de accent)."""
+    """Generează o culoare pastelată unică pe baza numelui utilizatorului."""
     hash_object = hashlib.sha1(nickname.encode('utf-8'))
     hex_dig = hash_object.hexdigest()
 
-    # Asigură o culoare pastelată
     r = int(hex_dig[0:2], 16) % 150 + 50
     g = int(hex_dig[2:4], 16) % 150 + 50
     b = int(hex_dig[4:6], 16) % 150 + 50
@@ -50,19 +49,16 @@ PERSONALITIES = [
 
 class ClientGui:
     def __init__(self):
-        # Setăm tema CTk global la Light
-        ctk.set_appearance_mode("Light")
-
-        msg = ctk.CTk()
-        msg.withdraw()
-
-        self.nickname = simpledialog.ask_string("Autentificare", "Numele tău:", parent=msg)
-        if not self.nickname:
-            sys.exit()
-
-        # Setăm culoarea de accent dinamică
+        # Setăm culoarea de accent dinamică înainte de GUI
         global ACCENT_COLOR
         ACCENT_COLOR = get_user_color(self.nickname)
+
+        msg = tk.Tk()
+        msg.withdraw()
+
+        self.nickname = simpledialog.askstring("Autentificare", "Numele tău:", parent=msg)
+        if not self.nickname:
+            sys.exit()
 
         self.gui_done = False
         self.running = True
@@ -76,10 +72,10 @@ class ClientGui:
         self.gui_loop()
 
     def gui_loop(self):
-        self.win = ctk.CTk()
+        self.win = tk.Tk()
         self.win.title(f"Team Chat - {self.nickname}")
         self.win.geometry("800x600")
-        self.win.configure(fg_color=BG_COLOR)
+        self.win.configure(bg=COLOR_BG)
 
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -95,67 +91,69 @@ class ClientGui:
             sys.exit()
 
         # 1. Header (Titlu)
-        header = ctk.CTkFrame(self.win, fg_color="#f8f8f8", height=30, corner_radius=0)
+        header = tk.Frame(self.win, bg="#3c3c3c", height=30)
         header.pack(fill='x', side='top')
-        ctk.CTkLabel(header, text=f"Team Chat - {self.nickname}", font=(FONT_FAMILY, 14, "bold"),
-                     text_color=TEXT_COLOR).pack(pady=5)
+        tk.Label(header, text=f"Team Chat - {self.nickname}", font=(FONT_FAMILY, 12, "bold"), bg="#3c3c3c",
+                 fg=COLOR_TEXT).pack(pady=5)
 
         # 2. Control Frame (Dropdowns)
-        control_frame = ctk.CTkFrame(self.win, fg_color=BG_COLOR, height=40, corner_radius=0)
-        control_frame.pack(fill='x', side='top', padx=10, pady=(5, 0))
+        control_frame = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=5)
+        control_frame.pack(fill='x', side='top')
 
         # --- Dropdown Personalitate ---
-        ctk.CTkLabel(control_frame, text="Rol AI:", fg_color=BG_COLOR, text_color=TEXT_COLOR,
-                     font=(FONT_FAMILY, 10, "bold")).pack(side="left", padx=(0, 5))
-        self.pers_var = ctk.StringVar(self.win, value=self.current_ai_role)
-        self.pers_combo = ctk.CTkOptionMenu(control_frame, variable=self.pers_var, values=PERSONALITIES,
-                                            command=self.send_pers_config, width=180,
-                                            fg_color=ACCENT_COLOR, button_color=ACCENT_COLOR,
-                                            button_hover_color=ACCENT_COLOR)
-        self.pers_combo.pack(side="left", padx=(0, 20))
+        tk.Label(control_frame, text="Rol AI:", bg=COLOR_BG, fg=COLOR_TEXT, font=(FONT_FAMILY, 10, "bold")).pack(
+            side="left", padx=(0, 5))
+        self.pers_var = tk.StringVar(self.win, value=self.current_ai_role)
+        self.pers_combo = ttk.Combobox(control_frame, textvariable=self.pers_var, values=PERSONALITIES,
+                                       state="readonly", width=20, font=(FONT_FAMILY, 9))
+        self.pers_combo.pack(side="left", padx=(0, 15))
+        self.pers_combo.bind("<<ComboboxSelected>>", self.send_pers_config)
 
         # --- Dropdown Istoric Mesaje ---
         CACHE_OPTIONS = [str(i) for i in range(5, 51, 5)]
-        ctk.CTkLabel(control_frame, text="Istoric Mesaje:", fg_color=BG_COLOR, text_color=TEXT_COLOR,
-                     font=(FONT_FAMILY, 10, "bold")).pack(side="left", padx=(0, 5))
-        self.cache_var = ctk.StringVar(self.win, value="30")
-        self.cache_combo = ctk.CTkOptionMenu(control_frame, variable=self.cache_var, values=CACHE_OPTIONS,
-                                             command=self.send_cache_config, width=60,
-                                             fg_color=ACCENT_COLOR, button_color=ACCENT_COLOR,
-                                             button_hover_color=ACCENT_COLOR)
+        tk.Label(control_frame, text="Istoric Mesaje:", bg=COLOR_BG, fg=COLOR_TEXT,
+                 font=(FONT_FAMILY, 10, "bold")).pack(side="left", padx=(0, 5))
+        self.cache_var = tk.StringVar(self.win, value="30")
+        self.cache_combo = ttk.Combobox(control_frame, textvariable=self.cache_var, values=CACHE_OPTIONS,
+                                        state="readonly", width=5, font=(FONT_FAMILY, 9))
         self.cache_combo.pack(side="left")
+        self.cache_combo.bind("<<ComboboxSelected>>", self.send_cache_config)
 
         # 3. Chat Area
-        frame_chat = ctk.CTkFrame(self.win, fg_color=BG_COLOR, corner_radius=0)
-        frame_chat.pack(expand=True, fill='both', padx=10, pady=10)
+        frame_chat = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=10)
+        frame_chat.pack(expand=True, fill='both')
 
-        # CTkTextbox - Note: Nu suportă tag-uri!
-        self.text_area = ctk.CTkTextbox(frame_chat, fg_color=CHAT_BG_COLOR, text_color=TEXT_COLOR,
-                                        font=(FONT_FAMILY, FONT_SIZE), activate_scrollbars=True, wrap="word")
-        self.text_area.pack(expand=True, fill='both', padx=5, pady=5)
-        self.text_area.configure(state='disabled')
+        self.text_area = scrolledtext.ScrolledText(frame_chat, bg=COLOR_CHAT_BG, fg=COLOR_TEXT,
+                                                   font=(FONT_FAMILY, FONT_SIZE), bd=0, padx=10, pady=10)
+        self.text_area.pack(expand=True, fill='both')
+        self.text_area.config(state='disabled')
 
-        # Mesaje inițiale
-        self.text_area.configure(state='normal')
-        self.text_area.insert("end", f"⚠ Conectat la: {self.host_address}:{PORT}\n", "sys_tag")
-        self.text_area.insert("end", f"⚠ Oră conexiune: {self.connection_time}\n", "sys_tag")
-        self.text_area.insert("end", f"*** {self.nickname} s-a alăturat! ***\n\n", "bold")
-        self.text_area.configure(state='disabled')
+        # Configurare Tag-uri
+        self.text_area.tag_config('normal', foreground=COLOR_TEXT, font=(FONT_FAMILY, FONT_SIZE))
+        self.text_area.tag_config('ai_style', foreground=COLOR_AI_TEXT, font=(FONT_FAMILY, FONT_SIZE, "italic"))
+        self.text_area.tag_config('sys_tag', foreground="#ff6666", font=(FONT_FAMILY, 9))
+        self.text_area.tag_config('me_tag', foreground=ACCENT_COLOR, font=(FONT_FAMILY, FONT_SIZE, "bold"))
+        self.text_area.tag_config('bold', foreground=COLOR_TEXT, font=(FONT_FAMILY, FONT_SIZE, "bold"))
+
+        self.text_area.config(state='normal')
+        self.text_area.insert('end', f"⚠ Conectat la: {self.host_address}:{PORT}\n", 'sys_tag')
+        self.text_area.insert('end', f"⚠ Oră conexiune: {self.connection_time}\n", 'sys_tag')
+        self.text_area.insert('end', f"{self.nickname} s-a alăturat!\n", 'bold')
+        self.text_area.config(state='disabled')
 
         # 4. Input Frame
-        input_frame = ctk.CTkFrame(self.win, fg_color="#f8f8f8", height=50, corner_radius=0)
-        input_frame.pack(fill='x', side='bottom', padx=10, pady=(0, 10))
+        input_frame = tk.Frame(self.win, bg="#3c3c3c", pady=10, padx=10)
+        input_frame.pack(fill='x', side='bottom')
 
-        self.input_area = ctk.CTkEntry(input_frame, fg_color=CHAT_BG_COLOR, text_color=TEXT_COLOR,
-                                       font=(FONT_FAMILY, 11),
-                                       placeholder_text="Scrie un mesaj...", height=35)
+        self.input_area = tk.Entry(input_frame, bg="#2e2e2e", fg=COLOR_TEXT, font=(FONT_FAMILY, 11), relief="flat",
+                                   bd=5)
         self.input_area.pack(side="left", fill='x', expand=True, padx=10)
         self.input_area.bind("<Return>", self.write)
 
         # Buton cu culoarea dinamică a utilizatorului
-        ctk.CTkButton(input_frame, text="Trimite", fg_color=ACCENT_COLOR, text_color=TEXT_COLOR,
-                      hover_color=ACCENT_COLOR, font=(FONT_FAMILY, 10, "bold"), width=80,
-                      command=self.write).pack(side="right", padx=10)
+        tk.Button(input_frame, text="Trimite", bg=ACCENT_COLOR, fg=COLOR_BTN_TEXT, font=(FONT_FAMILY, 10, "bold"), bd=0,
+                  padx=15,
+                  pady=5, command=self.write).pack(side="right", padx=10)
 
         self.gui_done = True
         self.win.protocol("WM_DELETE_WINDOW", self.stop)
@@ -166,13 +164,15 @@ class ClientGui:
         self.win.mainloop()
 
     # --- Funcții de Configurare Directă ---
-    def send_pers_config(self, value):  # Primește valoarea de la CTkOptionMenu
-        self.send_config("PERS", value)
-        self.current_ai_role = value
+    def send_pers_config(self, event=None):
+        pers_value = self.pers_var.get()
+        self.send_config("PERS", pers_value)
+        self.current_ai_role = pers_value
 
-    def send_cache_config(self, value):  # Primește valoarea de la CTkOptionMenu
+    def send_cache_config(self, event=None):
+        cache_value = self.cache_var.get()
         try:
-            cache_limit = int(value)
+            cache_limit = int(cache_value)
             if 5 <= cache_limit <= 50:
                 self.send_config("CACHE", str(cache_limit))
             else:
@@ -195,9 +195,9 @@ class ClientGui:
                 self.sock.send(message.encode('utf-8'))
                 self.input_area.delete(0, 'end')
             except:
-                self.text_area.configure(state='normal')
-                self.text_area.insert("end", "Eroare conexiune!\n")
-                self.text_area.configure(state='disabled')
+                self.text_area.config(state='normal')
+                self.text_area.insert('end', "Eroare conexiune!\n", 'sys_tag')
+                self.text_area.config(state='disabled')
 
     def stop(self):
         self.running = False
@@ -213,21 +213,21 @@ class ClientGui:
             try:
                 message = self.sock.recv(1024).decode('utf-8')
                 if self.gui_done:
-                    self.text_area.configure(state='normal')
+                    self.text_area.config(state='normal')
 
                     if message.startswith("SYS:"):
                         clean = message.replace("SYS:", "")
-                        self.text_area.insert("end", f"⚠ {clean}\n\n", "sys_tag")
+                        self.text_area.insert('end', f"⚠ {clean}\n", 'sys_tag')
 
                         # --- SINCRONIZARE ---
                         if "PERSONALITATE SCHIMBATA ÎN:" in clean:
                             new_role = clean.split("PERSONALITATE SCHIMBATA ÎN: ")[1].strip()
                             self.current_ai_role = new_role
-                            self.pers_combo.set(new_role)  # Actualizează Combobox
+                            self.pers_combo.set(new_role)
 
                         if "LIMITA ISTORIC SETATĂ LA:" in clean:
                             new_limit = clean.split("LIMITA ISTORIC SETATĂ LA: ")[1].strip()
-                            self.cache_var.set(new_limit)  # Actualizează Combobox
+                            self.cache_combo.set(new_limit)
 
                         if "AI ACTIV:" in clean:
                             self.current_ai_model = clean.split("AI ACTIV: ")[1].strip()
@@ -235,31 +235,43 @@ class ClientGui:
                             self.current_ai_role = clean.split("ROL INIȚIAL: ")[1].strip()
 
                     elif "AI (" in message:
-                        # Formatare AI (Gri, Italic - folosind o setare fixă de font)
                         parts = message.split("): ", 1)
-                        role = parts[0] + "): "
-                        msg = parts[1] if len(parts) > 1 else ""
-
-                        # Inserăm cu culoarea AI și stilul italic pentru întregul bloc
-                        self.text_area.insert("end", role, (FONT_FAMILY, FONT_SIZE, "italic"), text_color=AI_TEXT_COLOR)
-                        self.text_area.insert("end", msg + "\n\n", (FONT_FAMILY, FONT_SIZE, "italic"),
-                                              text_color=AI_TEXT_COLOR)
+                        if len(parts) > 1:
+                            role = parts[0] + ")"
+                            msg = parts[1]
+                            self.text_area.insert('end', role + ": ", 'ai_style')
+                            self.text_area.insert('end', msg + "\n", 'ai_style')
+                        else:
+                            self.text_area.insert('end', message + "\n", 'ai_style')
 
                     else:
-                        # Formatare Utilizator (Folosim doar Text Color, fără culori pastelate individuale)
                         if ":" in message:
                             parts = message.split(":", 1)
                             u_name = parts[0]
                             u_msg = parts[1]
 
-                            # Utilizatorii vor avea text normal (negru/TEXT_COLOR)
-                            self.text_area.insert("end", u_name + ": ", (FONT_FAMILY, FONT_SIZE, "bold"))
-                            self.text_area.insert("end", u_msg + "\n\n")
-                        else:
-                            self.text_area.insert("end", message + "\n\n")
+                            if u_name not in self.user_tags:
+                                user_color = get_user_color(u_name)
+                                self.user_tags[u_name] = user_color
+                                self.text_area.tag_config(f'user_name_{u_name}', foreground=user_color,
+                                                          font=(FONT_FAMILY, FONT_SIZE, "bold"))
+                                self.text_area.tag_config(f'user_msg_{u_name}', foreground=user_color,
+                                                          font=(FONT_FAMILY, FONT_SIZE))
 
-                    self.text_area.see("end")  # Scrollează la final
-                    self.text_area.configure(state='disabled')
+                            user_name_tag = f'user_name_{u_name}'
+                            user_msg_tag = f'user_msg_{u_name}'
+
+                            if u_name == self.nickname:
+                                self.text_area.insert('end', f"{u_name}: ", 'me_tag')
+                                self.text_area.insert('end', u_msg + "\n", 'normal')
+                            else:
+                                self.text_area.insert('end', u_name + ": ", user_name_tag)
+                                self.text_area.insert('end', u_msg + "\n", user_msg_tag)
+                        else:
+                            self.text_area.insert('end', message + "\n", 'normal')
+
+                    self.text_area.yview('end')
+                    self.text_area.config(state='disabled')
             except:
                 break
 
