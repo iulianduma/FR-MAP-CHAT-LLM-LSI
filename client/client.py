@@ -2,39 +2,62 @@
 import socket
 import threading
 import tkinter as tk
-from tkinter import simpledialog, scrolledtext, ttk, messagebox
+from tkinter import simpledialog, scrolledtext, messagebox
 import sys
 import time
 import hashlib
+import platform  # Pentru OS si CPU
+import psutil  # Pentru RAM
+import os  # Pentru a verifica existenta fisierelor
+# Librarie externa necesara doar pentru interfata grafica moderna
+import ttkbootstrap as tb
+from tkinter import ttk
 
 HOST = 'iulianddd.ddns.net'
 PORT = 5555
 
-# --- TEMĂ TKINTER MODERNĂ DARK MODE ---
+# --- STIL CHAT (Culorile primare sunt preluate de ttkbootstrap) ---
 FONT_FAMILY = "Segoe UI"
-FONT_SIZE = 10  # Mărimea standard pentru oameni (care vor fi indentati)
-
-# Culori optimizate pentru Dark Mode
-COLOR_BG = "#1e1e1e"  # Fundal fereastra (Gri foarte închis)
-COLOR_CHAT_BG = "#2c2c2c"  # Fundal zona de chat (Gri mai deschis)
-COLOR_TEXT = "#ffffff"  # Text standard (Alb)
-COLOR_BTN_TEXT = "#ffffff"  # Text buton (Alb)
-COLOR_AI_TEXT = "#90caf9"  # Albastru deschis pentru AI
-
-ACCENT_COLOR = "#4361ee"  # Culoarea de accent
+FONT_SIZE = 10
+COLOR_TEXT = "#ffffff"  # Text standard
+COLOR_AI_TEXT = "#90caf9"  # Albastru deschis pentru AI (Se pastreaza)
+ACCENT_COLOR = "#4361ee"  # Culoarea de accent (Pentru butoane/elemente vizuale)
 
 
 def get_user_color(nickname):
-    """Generează o culoare unică pentru user bazată pe numele lui."""
+    """Genereaza o culoare unica pentru user bazata pe numele lui."""
     hash_object = hashlib.sha1(nickname.encode('utf-8'))
     hex_dig = hash_object.hexdigest()
 
-    # Generăm culori deschise care să se vadă bine pe fundalul întunecat
+    # Generam culori deschise
     r = int(hex_dig[0:2], 16) % 100 + 155
     g = int(hex_dig[2:4], 16) % 100 + 155
     b = int(hex_dig[4:6], 16) % 100 + 155
-
     return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def get_system_info():
+    """Colecteaza informatiile hardware locale (OS, CPU, RAM, GPU, VRAM)."""
+    info = {
+        "OS": f"{platform.system()} {platform.release()}",
+        "CPU": platform.processor(),
+        "RAM": f"{round(psutil.virtual_memory().total / (1024 ** 3), 2)} GB",
+        # Detaliile GPU necesita librarii externe complexe (wmi, pynvml, etc.).
+        # Pentru portabilitate, le marcam generic:
+        "GPU": "Necunoscută (necesită librării suplimentare)",
+        "VRAM": "N/A"
+    }
+
+    # Incearca sa obtina numele procesorului mai detaliat pe Windows/Linux
+    try:
+        if platform.system() == "Windows":
+            info["CPU"] = os.popen('wmic cpu get name').read().strip().split('\n')[-1].strip()
+        elif platform.system() == "Linux":
+            info["CPU"] = os.popen("lscpu | grep 'Model name'").read().split(':')[-1].strip()
+    except Exception:
+        pass
+
+    return info
 
 
 PERSONALITIES = [
@@ -51,29 +74,39 @@ class ClientGui:
     def __init__(self):
         msg = tk.Tk()
         msg.withdraw()
-
-        # Cere nickname-ul la început
         self.nickname = simpledialog.askstring("Autentificare", "Numele tău:", parent=msg)
         if not self.nickname:
             sys.exit()
 
+        self.system_info = get_system_info()  # Colectam info locale
         self.gui_done = False
         self.running = True
-
-        self.host_address = HOST
-        self.connection_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        self.current_ai_model = "Necunoscut"
         self.current_ai_role = "Expert IT (Cortex)"
+        self.current_ai_model = "Necunoscut"
+        self.is_ai_on = True
         self.user_tags = {}
         self.max_words = 50
 
         self.gui_loop()
 
+    def update_status_bar(self):
+        """Actualizeaza bara de status cu informatii extinse."""
+        status_text = (
+            f"Sistem: {self.system_info['OS']} | "
+            f"CPU: {self.system_info['CPU']} | "
+            f"RAM: {self.system_info['RAM']} | "
+            f"GPU: {self.system_info['GPU']} | "
+            f"VRAM: {self.system_info['VRAM']} | "
+            f"AI ROL: {self.current_ai_role} | "
+            f"AI MODEL: {self.current_ai_model} | "
+            f"Conectat la: {HOST}:{PORT}"
+        )
+        self.status_label.config(text=status_text)
+
     def gui_loop(self):
-        self.win = tk.Tk()
+        self.win = tb.Window(themename="darkly")
         self.win.title(f"Team Chat - {self.nickname}")
         self.win.geometry("1500x750")
-        self.win.configure(bg=COLOR_BG)
 
         # Încearcă să te conecteze la server
         try:
@@ -81,27 +114,27 @@ class ClientGui:
             self.sock.settimeout(5)
             self.sock.connect((HOST, PORT))
             self.sock.settimeout(None)
+
+            # NOU: La conectare, trimitem imediat informatiile sistemului
+            info_message = f"SYS:JOIN_INFO:{self.nickname}|OS:{self.system_info['OS']}|CPU:{self.system_info['CPU']}|RAM:{self.system_info['RAM']}|GPU:{self.system_info['GPU']}|VRAM:{self.system_info['VRAM']}"
+            self.sock.send(info_message.encode('utf-8'))
+
         except Exception as e:
-            messagebox.showerror("Eroare Fatală",
-                                 f"Nu m-am putut conecta la serverul: {HOST}\n\n"
-                                 f"Verifică:\n1. Dacă serverul Docker rulează.\n2. Dacă adresa IP este corectă.\n3. Port Forwarding (5555)."
-                                 )
+            messagebox.showerror("Eroare Fatală", f"Nu m-am putut conecta la serverul: {HOST}\nEroare: {e}")
             self.win.destroy()
             sys.exit()
 
         # 1. Header (Titlu)
-        header = tk.Frame(self.win, bg=COLOR_CHAT_BG, height=30)
+        header = ttk.Frame(self.win)
         header.pack(fill='x', side='top')
-        tk.Label(header, text=f"Team Chat - {self.nickname}", font=(FONT_FAMILY, 12, "bold"), bg=COLOR_CHAT_BG,
-                 fg=COLOR_TEXT).pack(pady=5)
+        ttk.Label(header, text=f"Team Chat - {self.nickname}", font=(FONT_FAMILY, 12, "bold")).pack(pady=5)
 
-        # 2. Control Frame (Dropdowns + Slider)
-        control_frame = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=5)
-        control_frame.pack(fill='x', side='top')
+        # 2. Control Frame
+        control_frame = ttk.Frame(self.win)
+        control_frame.pack(fill='x', side='top', padx=10, pady=5)
 
         # Dropdown Personalitate AI
-        tk.Label(control_frame, text="Rol AI:", bg=COLOR_BG, fg=COLOR_TEXT, font=(FONT_FAMILY, 10, "bold")).pack(
-            side="left", padx=(0, 5))
+        ttk.Label(control_frame, text="Rol AI:", font=(FONT_FAMILY, 10, "bold")).pack(side="left", padx=(0, 5))
         self.pers_var = tk.StringVar(self.win, value=self.current_ai_role)
         self.pers_combo = ttk.Combobox(control_frame, textvariable=self.pers_var, values=PERSONALITIES,
                                        state="readonly", width=20, font=(FONT_FAMILY, 9))
@@ -110,8 +143,7 @@ class ClientGui:
 
         # Dropdown Istoric Mesaje
         CACHE_OPTIONS = [str(i) for i in range(5, 51, 5)]
-        tk.Label(control_frame, text="Istoric Mesaje:", bg=COLOR_BG, fg=COLOR_TEXT,
-                 font=(FONT_FAMILY, 10, "bold")).pack(side="left", padx=(0, 5))
+        ttk.Label(control_frame, text="Istoric Mesaje:", font=(FONT_FAMILY, 10, "bold")).pack(side="left", padx=(0, 5))
         self.cache_var = tk.StringVar(self.win, value="30")
         self.cache_combo = ttk.Combobox(control_frame, textvariable=self.cache_var, values=CACHE_OPTIONS,
                                         state="readonly", width=5, font=(FONT_FAMILY, 9))
@@ -119,93 +151,82 @@ class ClientGui:
         self.cache_combo.bind("<<ComboboxSelected>>", self.send_cache_config)
 
         # Slider Limită Cuvinte AI
-        tk.Label(control_frame, text="Max Cuvinte AI:", bg=COLOR_BG, fg=COLOR_TEXT,
-                 font=(FONT_FAMILY, 10, "bold")).pack(side="left", padx=(10, 5))
-
+        ttk.Label(control_frame, text="Max Cuvinte AI:", font=(FONT_FAMILY, 10, "bold")).pack(side="left", padx=(10, 5))
         self.words_var = tk.IntVar(value=self.max_words)
-        self.words_slider = tk.Scale(control_frame, from_=10, to=100, orient=tk.HORIZONTAL, resolution=10,
+        self.words_slider = tb.Scale(control_frame, from_=10, to=100, orient=tk.HORIZONTAL,
                                      variable=self.words_var, command=self.send_word_limit_config,
-                                     label="", troughcolor=ACCENT_COLOR, sliderrelief=tk.FLAT, bd=0,
-                                     bg=COLOR_BG, fg=COLOR_TEXT, highlightthickness=0)
+                                     style="primary", length=150)
         self.words_slider.pack(side="left")
 
-        # 3. Chat Area - Aici se afișează mesajele
-        frame_chat = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=10)
-        frame_chat.pack(expand=True, fill='both')
+        # Buton ON/OFF AI
+        self.ai_toggle_button = tb.Button(control_frame, text="AI ON", bootstyle="success",
+                                          command=self.toggle_ai_state)
+        self.ai_toggle_button.pack(side="right", padx=(15, 0))
 
-        # Zona de text
-        self.text_area = scrolledtext.ScrolledText(frame_chat, bg=COLOR_CHAT_BG, fg=COLOR_TEXT,
+        # 3. Chat Area
+        frame_chat = ttk.Frame(self.win)
+        frame_chat.pack(expand=True, fill='both', padx=10, pady=10)
+
+        self.text_area = scrolledtext.ScrolledText(frame_chat,
+                                                   fg=COLOR_TEXT,
                                                    font=(FONT_FAMILY, FONT_SIZE), bd=1, padx=10, pady=10,
                                                    relief=tk.FLAT)
         self.text_area.pack(expand=True, fill='both')
-        self.text_area.config(state='disabled')
+        self.text_area.config(state='disabled',
+                              bg=self.win.style.colors.bg)
 
-        # Configurare Tag-uri: Indentarea este INVERSATĂ
-
-        # AI: Default (fără indentare), font 8, italic, culoare AI
-        self.text_area.tag_config('ai_style',
-                                  foreground=COLOR_AI_TEXT,
-                                  font=(FONT_FAMILY, 8, "italic"),
-                                  justify='left')
-
-        # OAMENI: Font 10, normal/bold, culoare, și Indentare 40px
-        self.text_area.tag_config('',
-                                  font=(FONT_FAMILY, FONT_SIZE),
-                                  justify='left',
-                                  lmargin1=40,
-                                  lmargin2=40)
-
-        # Mesaje de sistem (fără indentare)
+        # --- CONFIGURARE TAG-URI ---
+        self.text_area.tag_config('ai_style', foreground=COLOR_AI_TEXT, font=(FONT_FAMILY, 8, "italic"), justify='left')
+        self.text_area.tag_config('user_indent', justify='left', lmargin1=40, lmargin2=40)
         self.text_area.tag_config('sys_tag', foreground="#ff8a80", font=(FONT_FAMILY, 9), justify='left')
-
-        # Mesajele tale (culoarea ta, bold, indentat)
         self.text_area.tag_config('me_tag', foreground=ACCENT_COLOR, font=(FONT_FAMILY, FONT_SIZE, "bold"))
-
-        # Text bold (folosit pentru notificarea de alăturare)
         self.text_area.tag_config('bold', foreground=COLOR_TEXT, font=(FONT_FAMILY, FONT_SIZE, "bold"))
+        self.text_area.tag_config('tech_info', foreground="#80deea",
+                                  font=(FONT_FAMILY, 8))  # Albastru deschis pentru info tehnice
+
+        # --- BARA DE STATUS (Status Bar) ---
+        self.status_label = ttk.Label(self.win, text="Se conectează...", anchor="w",
+                                      font=(FONT_FAMILY, 8), bootstyle="inverse-secondary")
+        self.status_label.pack(side="bottom", fill="x")
+        self.update_status_bar()
 
         # --- PREAMBUL SIMPLIFICAT ---
         self.text_area.config(state='normal')
-
-        # Linia 1: Conectare, Ora, Rol AI, Model AI
-        preambule_line = (
-            f"Conectat la: {self.host_address}   "
-            f"Oră conexiune: {self.connection_time}   "
-            f"AI ROL: {self.current_ai_role}   "
-            f"AI ACTIV: Necunoscut"  # Vom actualiza modelul la primirea primului mesaj SYS
-        )
-        self.text_area.insert('end', f"⚠ {preambule_line}\n", 'sys_tag')
-
-        # Linia 2: Notificarea de alăturare
-        self.text_area.insert('end', f"{self.nickname} s-a alăturat!\n", 'bold')
+        self.text_area.insert('end', f"⚠ Tentativă de conectare la {HOST}:{PORT}...\n", 'sys_tag')
         self.text_area.config(state='disabled')
 
-        # 4. Input Frame - Aici scriem
-        input_frame = tk.Frame(self.win, bg=COLOR_CHAT_BG, pady=10, padx=10)
-        input_frame.pack(fill='x', side='bottom')
+        # 4. Input Frame
+        input_frame = ttk.Frame(self.win)
+        input_frame.pack(fill='x', side='bottom', pady=10, padx=10)
 
-        # Caseta de text (Input)
-        self.input_area = tk.Entry(input_frame, bg="#3a3a3a", fg=COLOR_TEXT, font=(FONT_FAMILY, 11), relief="flat",
-                                   bd=5)
+        self.input_area = tb.Entry(input_frame, bootstyle="primary", font=(FONT_FAMILY, 11))
         self.input_area.pack(side="left", fill='x', expand=True, padx=10)
-        self.input_area.bind("<Return>", self.write)  # Trimite la apăsarea Enter
+        self.input_area.bind("<Return>", self.write)
 
-        # Buton "Trimite"
-        tk.Button(input_frame, text="Trimite", bg=ACCENT_COLOR, fg=COLOR_BTN_TEXT, font=(FONT_FAMILY, 10, "bold"), bd=0,
-                  padx=15,
-                  pady=5, command=self.write).pack(side="right", padx=10)
+        tb.Button(input_frame, text="Trimite", bootstyle="primary",
+                  command=self.write).pack(side="right", padx=10)
 
         self.gui_done = True
         self.win.protocol("WM_DELETE_WINDOW", self.stop)
 
-        # Pornește thread-ul de primire mesaje în fundal
         receive_thread = threading.Thread(target=self.receive)
         receive_thread.start()
 
         self.win.mainloop()
 
-    # --- Funcții de Configurare Directă (pentru AI) ---
+    # (Metodele toggle_ai_state, send_pers_config, send_cache_config, send_word_limit_config, send_config, write, stop raman la fel ca in codul anterior)
+    def toggle_ai_state(self):
+        """Porneste/Opreste AI-ul si trimite semnal la server."""
+        self.is_ai_on = not self.is_ai_on
+        if self.is_ai_on:
+            self.ai_toggle_button.config(text="AI ON", bootstyle="success")  # Green
+            self.send_config("AISTATE", "ON")
+        else:
+            self.ai_toggle_button.config(text="AI OFF", bootstyle="danger")  # Red
+            self.send_config("AISTATE", "OFF")
+
     def send_pers_config(self, event=None):
+        """Trimite personalitatea noua si semnal de reset context."""
         pers_value = self.pers_var.get()
         self.send_config("PERS", pers_value)
         self.current_ai_role = pers_value
@@ -216,16 +237,15 @@ class ClientGui:
             cache_limit = int(cache_value)
             if 5 <= cache_limit <= 50:
                 self.send_config("CACHE", str(cache_limit))
-            else:
-                messagebox.showerror("Eroare", "Limita de istoric trebuie să fie între 5 și 50.")
         except ValueError:
-            messagebox.showerror("Eroare", "Limita de istoric trebuie să fie un număr întreg.")
+            pass
 
     def send_word_limit_config(self, value):
         self.max_words = int(value)
         self.send_config("WORDS", str(self.max_words))
 
     def send_config(self, type, value):
+        """Functie generica pentru trimitere configurari catre server."""
         msg = f"CFG:{type}:{value}"
         try:
             self.sock.send(msg.encode('utf-8'))
@@ -233,6 +253,7 @@ class ClientGui:
             pass
 
     def write(self, event=None):
+        """Trimite mesajul catre server."""
         txt = self.input_area.get()
         if txt:
             message = f"{self.nickname}:{txt}"
@@ -253,8 +274,25 @@ class ClientGui:
             pass
         sys.exit()
 
+    def display_join_info(self, clean_message):
+        """Afiseaza detaliile tehnice ale unui utilizator care s-a alaturat."""
+        parts = clean_message.split('|')
+
+        info = {"IP": "N/A"}
+        for part in parts:
+            if ":" in part:
+                key, value = part.split(":", 1)
+                info[key] = value
+
+        self.text_area.insert('end', f"\n--- Detalii Conectare {info.get('NICKNAME', 'Anonim')} ---\n", 'sys_tag')
+        self.text_area.insert('end', f"  IP Client: {info.get('IP')}\n", 'tech_info')
+        self.text_area.insert('end', f"  SO: {info.get('OS')} | CPU: {info.get('CPU')}\n", 'tech_info')
+        self.text_area.insert('end', f"  RAM: {info.get('RAM')} | GPU: {info.get('GPU')} | VRAM: {info.get('VRAM')}\n",
+                              'tech_info')
+        self.text_area.insert('end', f"---------------------------------\n\n", 'sys_tag')
+
     def receive(self):
-        # Aici ascultăm mesajele care vin de la server
+        # Aici ascultam mesajele care vin de la server
         while self.running:
             try:
                 message = self.sock.recv(1024).decode('utf-8')
@@ -262,31 +300,25 @@ class ClientGui:
                     self.text_area.config(state='normal')
 
                     if message.startswith("SYS:"):
-                        # Mesaje de sistem
                         clean = message.replace("SYS:", "")
-                        self.text_area.insert('end', f"⚠ {clean}\n", 'sys_tag')
 
-                        # SINCRONIZARE: Actualizăm AI ACTIV în preambulul static
+                        # Tratare mesaje de join cu info tehnice
+                        if clean.startswith("JOIN_INFO:"):
+                            self.display_join_info(clean.replace("JOIN_INFO:", ""))
+
+                        # Actualizare status bar si ROL/MODEL AI
                         if "AI ACTIV:" in clean:
                             self.current_ai_model = clean.split("AI ACTIV: ")[1].strip()
-                            # Notă: Preambulul nu poate fi ușor actualizat după inserare, dar variabila este setată.
-
-                        # Alte sincronizări
-                        if "PERSONALITATE SCHIMBATA ÎN:" in clean:
-                            new_role = clean.split("PERSONALITATE SCHIMBATA ÎN: ")[1].strip()
+                        if "ROL INIȚIAL:" in clean or "PERSONALITATE SCHIMBATA ÎN:" in clean:
+                            new_role = clean.split(": ")[1].strip()
                             self.current_ai_role = new_role
                             self.pers_combo.set(new_role)
 
-                        if "LIMITA ISTORIC SETATĂ LA:" in clean:
-                            new_limit = clean.split("LIMITA ISTORIC SETATĂ LA: ")[1].strip()
-                            self.cache_combo.set(new_limit)
+                        self.update_status_bar()  # Actualizam bara de status
 
-                        if "LIMITA CUVINTE AI SETATĂ LA:" in clean:
-                            new_limit = clean.split("LIMITA CUVINTE AI SETATĂ LA: ")[1].strip()
-                            try:
-                                self.words_slider.set(int(new_limit))
-                            except ValueError:
-                                pass
+                        # Afisam mesajul de sistem simplu
+                        if not clean.startswith("JOIN_INFO:"):
+                            self.text_area.insert('end', f"⚠ {clean}\n", 'sys_tag')
 
                     elif "AI (" in message:
                         # Mesaj primit de la AI - FARA INDENTARE, stil AI (font 8, italic)
@@ -294,16 +326,10 @@ class ClientGui:
                         if len(parts) > 1:
                             u_name = parts[0] + ":"
                             u_msg = parts[1]
-
-                            # Aplicăm doar stilul AI (fără indentare)
                             self.text_area.insert('end', u_name, 'ai_style')
                             self.text_area.insert('end', u_msg + "\n", 'ai_style')
-
-                            # Adăugăm o linie goală la sfârșit pentru a reseta contextul de formatare.
                             self.text_area.insert('end', "\n", 'sys_tag')
-
                         else:
-                            # În cazul în care formatul nu este cel așteptat
                             self.text_area.insert('end', message + "\n", 'ai_style')
 
                     else:
@@ -314,35 +340,44 @@ class ClientGui:
                             u_msg = parts[1]
 
                             if u_name not in self.user_tags:
-                                # Dacă e un user nou, îi generăm o culoare unică
                                 user_color = get_user_color(u_name)
                                 self.user_tags[u_name] = user_color
                                 self.text_area.tag_config(f'user_name_{u_name}', foreground=user_color,
                                                           font=(FONT_FAMILY, FONT_SIZE, "bold"))
 
-                            # Aplicăm indentarea și stilul de text normal/bold pe întregul mesaj al utilizatorului
                             user_name_tag = f'user_name_{u_name}'
                             user_tags_combined = ('user_indent',)
 
                             if u_name == self.nickname:
-                                # Mesaj de la tine
                                 self.text_area.insert('end', f"{u_name}: ", 'me_tag', *user_tags_combined)
                                 self.text_area.insert('end', u_msg + "\n", *user_tags_combined)
                             else:
-                                # Mesaj de la alt user
                                 self.text_area.insert('end', u_name + ": ", user_name_tag, *user_tags_combined)
                                 self.text_area.insert('end', u_msg + "\n", *user_tags_combined)
                         else:
-                            # Mesaj fără ':' (rar)
                             self.text_area.insert('end', message + "\n", 'user_indent')
 
-                    # Derulează automat la ultimul mesaj
                     self.text_area.yview('end')
                     self.text_area.config(state='disabled')
             except Exception as e:
-                print(f"Eroare în thread-ul de primire: {e}")
+                if self.running:
+                    print(f"Eroare de conexiune la server: {e}")
+                    self.text_area.config(state='normal')
+                    self.text_area.insert('end', "\n!!! EROARE CRITICĂ: Conexiunea cu serverul a fost pierdută.\n",
+                                          'sys_tag')
+                    self.text_area.config(state='disabled')
+                    self.running = False
                 break
 
 
 if __name__ == "__main__":
+    # Verificam dependintele
+    try:
+        if platform.system() == "Windows":
+            import \
+                wmi  # Poate fi util pentru info GPU pe Windows, dar nu il folosim direct pentru a nu forta instalarea
+    except ImportError:
+        print(
+            "INFO: Librariile WMI (Windows Management Instrumentation) sau Pynvml nu sunt instalate. GPU/VRAM vor fi afisate ca 'Necunoscuta'.")
+
     ClientGui()
