@@ -6,10 +6,11 @@ from tkinter import simpledialog, scrolledtext, messagebox
 import sys
 import time
 import hashlib
-import platform  # Pentru OS si CPU
-import psutil  # Pentru RAM
-import os  # Pentru a verifica existenta fisierelor
-# Librarie externa necesara doar pentru interfata grafica moderna
+# Librarii pentru informatii sistem
+import platform
+import psutil
+import os
+# Librarii pentru interfata grafica moderna
 import ttkbootstrap as tb
 from tkinter import ttk
 
@@ -19,9 +20,9 @@ PORT = 5555
 # --- STIL CHAT (Culorile primare sunt preluate de ttkbootstrap) ---
 FONT_FAMILY = "Segoe UI"
 FONT_SIZE = 10
-COLOR_TEXT = "#ffffff"  # Text standard
-COLOR_AI_TEXT = "#90caf9"  # Albastru deschis pentru AI (Se pastreaza)
-ACCENT_COLOR = "#4361ee"  # Culoarea de accent (Pentru butoane/elemente vizuale)
+COLOR_TEXT = "#ffffff"
+COLOR_AI_TEXT = "#90caf9"
+ACCENT_COLOR = "#4361ee"
 
 
 def get_user_color(nickname):
@@ -42,13 +43,12 @@ def get_system_info():
         "OS": f"{platform.system()} {platform.release()}",
         "CPU": platform.processor(),
         "RAM": f"{round(psutil.virtual_memory().total / (1024 ** 3), 2)} GB",
-        # Detaliile GPU necesita librarii externe complexe (wmi, pynvml, etc.).
-        # Pentru portabilitate, le marcam generic:
-        "GPU": "Necunoscută (necesită librării suplimentare)",
+        # Detaliile GPU sunt setate generic pentru portabilitate:
+        "GPU": "Necunoscută",
         "VRAM": "N/A"
     }
 
-    # Incearca sa obtina numele procesorului mai detaliat pe Windows/Linux
+    # Incearca sa obtina numele procesorului mai detaliat
     try:
         if platform.system() == "Windows":
             info["CPU"] = os.popen('wmic cpu get name').read().strip().split('\n')[-1].strip()
@@ -78,7 +78,7 @@ class ClientGui:
         if not self.nickname:
             sys.exit()
 
-        self.system_info = get_system_info()  # Colectam info locale
+        self.system_info = get_system_info()
         self.gui_done = False
         self.running = True
         self.current_ai_role = "Expert IT (Cortex)"
@@ -115,8 +115,15 @@ class ClientGui:
             self.sock.connect((HOST, PORT))
             self.sock.settimeout(None)
 
-            # NOU: La conectare, trimitem imediat informatiile sistemului
-            info_message = f"SYS:JOIN_INFO:{self.nickname}|OS:{self.system_info['OS']}|CPU:{self.system_info['CPU']}|RAM:{self.system_info['RAM']}|GPU:{self.system_info['GPU']}|VRAM:{self.system_info['VRAM']}"
+            # La conectare, trimitem imediat informatiile sistemului catre server
+            info_message = (
+                f"SYS:JOIN_INFO:{self.nickname}|"
+                f"OS:{self.system_info['OS']}|"
+                f"CPU:{self.system_info['CPU']}|"
+                f"RAM:{self.system_info['RAM']}|"
+                f"GPU:{self.system_info['GPU']}|"
+                f"VRAM:{self.system_info['VRAM']}"
+            )
             self.sock.send(info_message.encode('utf-8'))
 
         except Exception as e:
@@ -181,8 +188,7 @@ class ClientGui:
         self.text_area.tag_config('sys_tag', foreground="#ff8a80", font=(FONT_FAMILY, 9), justify='left')
         self.text_area.tag_config('me_tag', foreground=ACCENT_COLOR, font=(FONT_FAMILY, FONT_SIZE, "bold"))
         self.text_area.tag_config('bold', foreground=COLOR_TEXT, font=(FONT_FAMILY, FONT_SIZE, "bold"))
-        self.text_area.tag_config('tech_info', foreground="#80deea",
-                                  font=(FONT_FAMILY, 8))  # Albastru deschis pentru info tehnice
+        self.text_area.tag_config('tech_info', foreground="#80deea", font=(FONT_FAMILY, 8))  # Info tehnice
 
         # --- BARA DE STATUS (Status Bar) ---
         self.status_label = ttk.Label(self.win, text="Se conectează...", anchor="w",
@@ -214,15 +220,16 @@ class ClientGui:
 
         self.win.mainloop()
 
-    # (Metodele toggle_ai_state, send_pers_config, send_cache_config, send_word_limit_config, send_config, write, stop raman la fel ca in codul anterior)
+    # --- Logica Butoane si Configurare ---
+
     def toggle_ai_state(self):
         """Porneste/Opreste AI-ul si trimite semnal la server."""
         self.is_ai_on = not self.is_ai_on
         if self.is_ai_on:
-            self.ai_toggle_button.config(text="AI ON", bootstyle="success")  # Green
+            self.ai_toggle_button.config(text="AI ON", bootstyle="success")
             self.send_config("AISTATE", "ON")
         else:
-            self.ai_toggle_button.config(text="AI OFF", bootstyle="danger")  # Red
+            self.ai_toggle_button.config(text="AI OFF", bootstyle="danger")
             self.send_config("AISTATE", "OFF")
 
     def send_pers_config(self, event=None):
@@ -284,7 +291,9 @@ class ClientGui:
                 key, value = part.split(":", 1)
                 info[key] = value
 
-        self.text_area.insert('end', f"\n--- Detalii Conectare {info.get('NICKNAME', 'Anonim')} ---\n", 'sys_tag')
+        nickname = info.get('NICKNAME', 'Anonim')
+
+        self.text_area.insert('end', f"\n--- Detalii Conectare {nickname} ---\n", 'sys_tag')
         self.text_area.insert('end', f"  IP Client: {info.get('IP')}\n", 'tech_info')
         self.text_area.insert('end', f"  SO: {info.get('OS')} | CPU: {info.get('CPU')}\n", 'tech_info')
         self.text_area.insert('end', f"  RAM: {info.get('RAM')} | GPU: {info.get('GPU')} | VRAM: {info.get('VRAM')}\n",
@@ -371,13 +380,4 @@ class ClientGui:
 
 
 if __name__ == "__main__":
-    # Verificam dependintele
-    try:
-        if platform.system() == "Windows":
-            import \
-                wmi  # Poate fi util pentru info GPU pe Windows, dar nu il folosim direct pentru a nu forta instalarea
-    except ImportError:
-        print(
-            "INFO: Librariile WMI (Windows Management Instrumentation) sau Pynvml nu sunt instalate. GPU/VRAM vor fi afisate ca 'Necunoscuta'.")
-
     ClientGui()
