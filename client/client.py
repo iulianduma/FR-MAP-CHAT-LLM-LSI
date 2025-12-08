@@ -10,12 +10,12 @@ import hashlib
 HOST = 'iulianddd.ddns.net'
 PORT = 5555
 
-# --- TEMA TKINTER MODERNA DARK MODE ---
+# --- TEMĂ TKINTER MODERNĂ DARK MODE ---
 FONT_FAMILY = "Segoe UI"
-FONT_SIZE = 10  # Marimea standard pentru oamenii
+FONT_SIZE = 10  # Mărimea standard pentru oameni (care vor fi indentati)
 
 # Culori optimizate pentru Dark Mode
-COLOR_BG = "#1e1e1e"  # Fundal fereastra (Gri foarte inchis)
+COLOR_BG = "#1e1e1e"  # Fundal fereastra (Gri foarte închis)
 COLOR_CHAT_BG = "#2c2c2c"  # Fundal zona de chat (Gri mai deschis)
 COLOR_TEXT = "#ffffff"  # Text standard (Alb)
 COLOR_BTN_TEXT = "#ffffff"  # Text buton (Alb)
@@ -25,11 +25,11 @@ ACCENT_COLOR = "#4361ee"  # Culoarea de accent
 
 
 def get_user_color(nickname):
-    """Genereaza o culoare unica pentru user bazata pe numele lui."""
+    """Generează o culoare unică pentru user bazată pe numele lui."""
     hash_object = hashlib.sha1(nickname.encode('utf-8'))
     hex_dig = hash_object.hexdigest()
 
-    # Generam culori deschise care sa se vada bine pe fundalul intunecat
+    # Generăm culori deschise care să se vadă bine pe fundalul întunecat
     r = int(hex_dig[0:2], 16) % 100 + 155
     g = int(hex_dig[2:4], 16) % 100 + 155
     b = int(hex_dig[4:6], 16) % 100 + 155
@@ -43,7 +43,7 @@ PERSONALITIES = [
     "UX/UI Designer", "Data Scientist", "HR Manager", "Marketing Strategist",
     "Business Analyst", "DevOps Engineer", "Quality Assurance (QA)",
     "Startup Founder", "Profesor Istorie", "Psiholog Organizational",
-    "Investitor VC", "Jurnalist Tech", "Consultant GDPR", "Expert Logistica"
+    "Investitor VC", "Jurnalist Tech", "Consultant GDPR", "Expert Logistică"
 ]
 
 
@@ -52,8 +52,8 @@ class ClientGui:
         msg = tk.Tk()
         msg.withdraw()
 
-        # Cere nickname-ul la inceput
-        self.nickname = simpledialog.askstring("Autentificare", "Numele tau:", parent=msg)
+        # Cere nickname-ul la început
+        self.nickname = simpledialog.askstring("Autentificare", "Numele tău:", parent=msg)
         if not self.nickname:
             sys.exit()
 
@@ -75,16 +75,16 @@ class ClientGui:
         self.win.geometry("1500x750")
         self.win.configure(bg=COLOR_BG)
 
-        # Incearca sa te conecteze la server
+        # Încearcă să te conecteze la server
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(5)
             self.sock.connect((HOST, PORT))
             self.sock.settimeout(None)
         except Exception as e:
-            messagebox.showerror("Eroare Fatala",
+            messagebox.showerror("Eroare Fatală",
                                  f"Nu m-am putut conecta la serverul: {HOST}\n\n"
-                                 f"Verifica:\n1. Daca serverul Docker ruleaza.\n2. Daca adresa IP este corecta.\n3. Port Forwarding (5555)."
+                                 f"Verifică:\n1. Dacă serverul Docker rulează.\n2. Dacă adresa IP este corectă.\n3. Port Forwarding (5555)."
                                  )
             self.win.destroy()
             sys.exit()
@@ -118,7 +118,7 @@ class ClientGui:
         self.cache_combo.pack(side="left", padx=(0, 15))
         self.cache_combo.bind("<<ComboboxSelected>>", self.send_cache_config)
 
-        # Slider Limita Cuvinte AI
+        # Slider Limită Cuvinte AI
         tk.Label(control_frame, text="Max Cuvinte AI:", bg=COLOR_BG, fg=COLOR_TEXT,
                  font=(FONT_FAMILY, 10, "bold")).pack(side="left", padx=(10, 5))
 
@@ -129,7 +129,7 @@ class ClientGui:
                                      bg=COLOR_BG, fg=COLOR_TEXT, highlightthickness=0)
         self.words_slider.pack(side="left")
 
-        # 3. Chat Area - Aici se afiseaza mesajele
+        # 3. Chat Area - Aici se afișează mesajele
         frame_chat = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=10)
         frame_chat.pack(expand=True, fill='both')
 
@@ -140,30 +140,44 @@ class ClientGui:
         self.text_area.pack(expand=True, fill='both')
         self.text_area.config(state='disabled')
 
-        # Configurare Tag-uri: Aici setam cum arata textul in functie de cine l-a scris
+        # Configurare Tag-uri: Indentarea este INVERSATĂ
 
-        # OAMENI: font 10, normal, aliniere stanga (default)
-        self.text_area.tag_config('normal', foreground=COLOR_TEXT, font=(FONT_FAMILY, FONT_SIZE), justify='left')
-
-        # AI: font 7, italic, aliniere dreapta - schimbarile tale!
-        self.text_area.tag_config('ai_style', foreground=COLOR_AI_TEXT, font=(FONT_FAMILY, 7, "italic"),
-                                  justify='right')
-
-        # Mesaje de sistem (rosu mai bland, font 9)
-        self.text_area.tag_config('sys_tag', foreground="#ff8a80", font=(FONT_FAMILY, 9), justify='left')
-
-        # Mesajele tale (culoarea ta, bold, font 10)
-        self.text_area.tag_config('me_tag', foreground=ACCENT_COLOR, font=(FONT_FAMILY, FONT_SIZE, "bold"),
+        # AI: Default (fără indentare), font 8, italic, culoare AI
+        self.text_area.tag_config('ai_style',
+                                  foreground=COLOR_AI_TEXT,
+                                  font=(FONT_FAMILY, 8, "italic"),
                                   justify='left')
 
-        # Text bold
-        self.text_area.tag_config('bold', foreground=COLOR_TEXT, font=(FONT_FAMILY, FONT_SIZE, "bold"), justify='left')
+        # OAMENI: Font 10, normal/bold, culoare, și Indentare 40px
+        self.text_area.tag_config('user_indent',
+                                  font=(FONT_FAMILY, FONT_SIZE),
+                                  justify='left',
+                                  lmargin1=40,
+                                  lmargin2=40)
 
-        # Mesajele initiale
+        # Mesaje de sistem (fără indentare)
+        self.text_area.tag_config('sys_tag', foreground="#ff8a80", font=(FONT_FAMILY, 9), justify='left')
+
+        # Mesajele tale (culoarea ta, bold, indentat)
+        self.text_area.tag_config('me_tag', foreground=ACCENT_COLOR, font=(FONT_FAMILY, FONT_SIZE, "bold"))
+
+        # Text bold (folosit pentru notificarea de alăturare)
+        self.text_area.tag_config('bold', foreground=COLOR_TEXT, font=(FONT_FAMILY, FONT_SIZE, "bold"))
+
+        # --- PREAMBUL SIMPLIFICAT ---
         self.text_area.config(state='normal')
-        self.text_area.insert('end', f"⚠ Conectat la: {self.host_address}:{PORT}\n", 'sys_tag')
-        self.text_area.insert('end', f"⚠ Ora conexiune: {self.connection_time}\n", 'sys_tag')
-        self.text_area.insert('end', f"{self.nickname} s-a alaturat!\n", 'bold')
+
+        # Linia 1: Conectare, Ora, Rol AI, Model AI
+        preambule_line = (
+            f"Conectat la: {self.host_address}   "
+            f"Oră conexiune: {self.connection_time}   "
+            f"AI ROL: {self.current_ai_role}   "
+            f"AI ACTIV: Necunoscut"  # Vom actualiza modelul la primirea primului mesaj SYS
+        )
+        self.text_area.insert('end', f"⚠ {preambule_line}\n", 'sys_tag')
+
+        # Linia 2: Notificarea de alăturare
+        self.text_area.insert('end', f"{self.nickname} s-a alăturat!\n", 'bold')
         self.text_area.config(state='disabled')
 
         # 4. Input Frame - Aici scriem
@@ -174,7 +188,7 @@ class ClientGui:
         self.input_area = tk.Entry(input_frame, bg="#3a3a3a", fg=COLOR_TEXT, font=(FONT_FAMILY, 11), relief="flat",
                                    bd=5)
         self.input_area.pack(side="left", fill='x', expand=True, padx=10)
-        self.input_area.bind("<Return>", self.write)  # Trimite la apasarea Enter
+        self.input_area.bind("<Return>", self.write)  # Trimite la apăsarea Enter
 
         # Buton "Trimite"
         tk.Button(input_frame, text="Trimite", bg=ACCENT_COLOR, fg=COLOR_BTN_TEXT, font=(FONT_FAMILY, 10, "bold"), bd=0,
@@ -184,13 +198,13 @@ class ClientGui:
         self.gui_done = True
         self.win.protocol("WM_DELETE_WINDOW", self.stop)
 
-        # Porneste thread-ul de primire mesaje in fundal
+        # Pornește thread-ul de primire mesaje în fundal
         receive_thread = threading.Thread(target=self.receive)
         receive_thread.start()
 
         self.win.mainloop()
 
-    # --- Functii de Configurare Directa (pentru AI) ---
+    # --- Funcții de Configurare Directă (pentru AI) ---
     def send_pers_config(self, event=None):
         pers_value = self.pers_var.get()
         self.send_config("PERS", pers_value)
@@ -203,9 +217,9 @@ class ClientGui:
             if 5 <= cache_limit <= 50:
                 self.send_config("CACHE", str(cache_limit))
             else:
-                messagebox.showerror("Eroare", "Limita de istoric trebuie sa fie intre 5 si 50.")
+                messagebox.showerror("Eroare", "Limita de istoric trebuie să fie între 5 și 50.")
         except ValueError:
-            messagebox.showerror("Eroare", "Limita de istoric trebuie sa fie un numar intreg.")
+            messagebox.showerror("Eroare", "Limita de istoric trebuie să fie un număr întreg.")
 
     def send_word_limit_config(self, value):
         self.max_words = int(value)
@@ -240,7 +254,7 @@ class ClientGui:
         sys.exit()
 
     def receive(self):
-        # Aici ascultam mesajele care vin de la server
+        # Aici ascultăm mesajele care vin de la server
         while self.running:
             try:
                 message = self.sock.recv(1024).decode('utf-8')
@@ -248,77 +262,85 @@ class ClientGui:
                     self.text_area.config(state='normal')
 
                     if message.startswith("SYS:"):
-                        # Mesaje de sistem (ex: un user a intrat/iesit)
+                        # Mesaje de sistem
                         clean = message.replace("SYS:", "")
                         self.text_area.insert('end', f"⚠ {clean}\n", 'sys_tag')
 
-                        # SINCRONIZARE cu setarile AI schimbate de alt user
-                        if "PERSONALITATE SCHIMBATA IN:" in clean:
-                            new_role = clean.split("PERSONALITATE SCHIMBATA IN: ")[1].strip()
+                        # SINCRONIZARE: Actualizăm AI ACTIV în preambulul static
+                        if "AI ACTIV:" in clean:
+                            self.current_ai_model = clean.split("AI ACTIV: ")[1].strip()
+                            # Notă: Preambulul nu poate fi ușor actualizat după inserare, dar variabila este setată.
+
+                        # Alte sincronizări
+                        if "PERSONALITATE SCHIMBATA ÎN:" in clean:
+                            new_role = clean.split("PERSONALITATE SCHIMBATA ÎN: ")[1].strip()
                             self.current_ai_role = new_role
                             self.pers_combo.set(new_role)
 
-                        if "LIMITA ISTORIC SETATA LA:" in clean:
-                            new_limit = clean.split("LIMITA ISTORIC SETATA LA: ")[1].strip()
+                        if "LIMITA ISTORIC SETATĂ LA:" in clean:
+                            new_limit = clean.split("LIMITA ISTORIC SETATĂ LA: ")[1].strip()
                             self.cache_combo.set(new_limit)
 
-                        if "LIMITA CUVINTE AI SETATA LA:" in clean:
-                            new_limit = clean.split("LIMITA CUVINTE AI SETATA LA: ")[1].strip()
+                        if "LIMITA CUVINTE AI SETATĂ LA:" in clean:
+                            new_limit = clean.split("LIMITA CUVINTE AI SETATĂ LA: ")[1].strip()
                             try:
                                 self.words_slider.set(int(new_limit))
                             except ValueError:
                                 pass
 
-                        if "AI ACTIV:" in clean:
-                            self.current_ai_model = clean.split("AI ACTIV: ")[1].strip()
-                        if "ROL INITIAL:" in clean:
-                            self.current_ai_role = clean.split("ROL INITIAL: ")[1].strip()
-
                     elif "AI (" in message:
-                        # Mesaj primit de la AI - folosim tag-ul 'ai_style' (font 7, aliniat dreapta)
-                        parts = message.split("): ", 1)
+                        # Mesaj primit de la AI - FARA INDENTARE, stil AI (font 8, italic)
+                        parts = message.split(":", 1)
                         if len(parts) > 1:
-                            role = parts[0] + ")"
-                            msg = parts[1]
-                            self.text_area.insert('end', role + ": ", 'ai_style')
-                            self.text_area.insert('end', msg + "\n", 'ai_style')
+                            u_name = parts[0] + ":"
+                            u_msg = parts[1]
+
+                            # Aplicăm doar stilul AI (fără indentare)
+                            self.text_area.insert('end', u_name, 'ai_style')
+                            self.text_area.insert('end', u_msg + "\n", 'ai_style')
+
+                            # Adăugăm o linie goală la sfârșit pentru a reseta contextul de formatare.
+                            self.text_area.insert('end', "\n", 'sys_tag')
+
                         else:
+                            # În cazul în care formatul nu este cel așteptat
                             self.text_area.insert('end', message + "\n", 'ai_style')
 
                     else:
-                        # Mesaj primit de la un user
+                        # Mesaj primit de la un user - INDENTAT, stil utilizator (font 10)
                         if ":" in message:
                             parts = message.split(":", 1)
                             u_name = parts[0]
                             u_msg = parts[1]
 
                             if u_name not in self.user_tags:
-                                # Daca e un user nou, ii generam o culoare unica
+                                # Dacă e un user nou, îi generăm o culoare unică
                                 user_color = get_user_color(u_name)
                                 self.user_tags[u_name] = user_color
                                 self.text_area.tag_config(f'user_name_{u_name}', foreground=user_color,
-                                                          font=(FONT_FAMILY, FONT_SIZE, "bold"), justify='left')
-                                self.text_area.tag_config(f'user_msg_{u_name}', foreground=COLOR_TEXT,
-                                                          font=(FONT_FAMILY, FONT_SIZE), justify='left')
+                                                          font=(FONT_FAMILY, FONT_SIZE, "bold"))
 
+                            # Aplicăm indentarea și stilul de text normal/bold pe întregul mesaj al utilizatorului
                             user_name_tag = f'user_name_{u_name}'
+                            user_tags_combined = ('user_indent',)
 
                             if u_name == self.nickname:
                                 # Mesaj de la tine
-                                self.text_area.insert('end', f"{u_name}: ", 'me_tag')
-                                self.text_area.insert('end', u_msg + "\n", 'normal')
+                                self.text_area.insert('end', f"{u_name}: ", 'me_tag', *user_tags_combined)
+                                self.text_area.insert('end', u_msg + "\n", *user_tags_combined)
                             else:
                                 # Mesaj de la alt user
-                                self.text_area.insert('end', u_name + ": ", user_name_tag)
-                                self.text_area.insert('end', u_msg + "\n", 'normal')
+                                self.text_area.insert('end', u_name + ": ", user_name_tag, *user_tags_combined)
+                                self.text_area.insert('end', u_msg + "\n", *user_tags_combined)
                         else:
-                            self.text_area.insert('end', message + "\n", 'normal')
+                            # Mesaj fără ':' (rar)
+                            self.text_area.insert('end', message + "\n", 'user_indent')
 
-                    # Deruleaza automat la ultimul mesaj
+                    # Derulează automat la ultimul mesaj
                     self.text_area.yview('end')
                     self.text_area.config(state='disabled')
             except Exception as e:
-                print(f"Eroare in thread-ul de primire: {e}")
+                print(f"Eroare în thread-ul de primire: {e}")
                 break
 
 
