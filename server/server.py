@@ -14,7 +14,7 @@ except ImportError:
 HOST = '0.0.0.0'
 PORT = 5555
 BUFFER_SIZE = 1024
-SILENCE_THRESHOLD = 30
+SILENCE_THRESHOLD = 60  # NOU: Perioada marita de la 30s la 60s
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -43,7 +43,7 @@ PROMPTS = {
     "Expert Logistică": "Ești un specialist în optimizarea lanțurilor de aprovizionare și a fluxurilor de resurse. Intervine pe subiecte legate de eficiență, stocuri, transport sau resurse fizice."
 }
 
-# CORECTAT: Inițializarea prompt-ului la Mediator Comic
+# Inițializarea prompt-ului la nivel global (DEFAULT: Mediator Comic)
 current_prompt_key = "Mediator Comic"
 active_system_instruction = PROMPTS[current_prompt_key]
 
@@ -151,6 +151,7 @@ def silence_watchdog():
                 last_message_time = time.time()
                 broadcast(f"AI ({current_prompt_key}): {response}")
             else:
+                # Resetam timpul de liniste cu 10s mai putin decat pragul pentru a forta o verificare rapida daca nu a intervenit
                 last_message_time = time.time() - (SILENCE_THRESHOLD - 10)
 
 
@@ -197,21 +198,16 @@ def handle_client(client, client_address):
                     broadcast(f"SYS:LIMITA CUVINTE AI SETATĂ LA: {parts[2]}")
 
             elif decoded_msg.startswith("SYS:JOIN_INFO:"):
-                # CORECTAT: Interceptam mesajul de JOIN_INFO si il tratam
-
-                # 1. Adaugam IP-ul in mesajul JOIN_INFO
+                # Interceptam mesajul de join si adaugam IP-ul
                 join_info_with_ip = decoded_msg + f"|IP:{client_ip}"
 
-                # 2. Extragem nickname-ul pentru notificare
                 try:
-                    # Nickname-ul se afla dupa al doilea ':' si inainte de primul '|'
-                    nickname = decoded_msg.split(':', 2)[-1].split('|')[0]
-                    # Mesajul de JOIN (fara detalii hardware) este broadcast-at catre toti
+                    nickname = decoded_msg.split(':')[2].split('|')[0]
                     broadcast(f"SYS:{nickname} s-a alaturat chat-ului.")
                 except:
                     pass
 
-                # 3. Propagam mesajul de info tehnic COMPLET (inclusiv IP)
+                # Propagam mesajul de info tehnic COMPLET (inclusiv IP)
                 broadcast(join_info_with_ip)
 
             else:
@@ -223,6 +219,7 @@ def handle_client(client, client_address):
 
                 if not decoded_msg.startswith("SYS:") and "AI (" not in decoded_msg:
                     if is_ai_active:
+                        # NOU: Verificarea finala a starii AI trebuie sa fie in run_ai_review
                         threading.Thread(target=run_ai_review, args=(decoded_msg,)).start()
         except:
             if client in clients: clients.remove(client)
@@ -231,9 +228,17 @@ def handle_client(client, client_address):
 
 
 def run_ai_review(latest_msg):
-    """Ruleaza decizia AI pe un thread separat."""
+    """Ruleaza decizia AI pe un thread separat, verificand starea finala."""
+    global is_ai_active, current_prompt_key
+
+    # Verificam starea AI inainte de a incepe procesarea
+    if not is_ai_active:
+        return
+
     response = get_ai_decision(trigger_type="review", explicit_msg=latest_msg)
-    if response:
+
+    # Verificam starea AI imediat inainte de a trimite raspunsul
+    if response and is_ai_active:
         broadcast(f"AI ({current_prompt_key}): {response}")
 
 
