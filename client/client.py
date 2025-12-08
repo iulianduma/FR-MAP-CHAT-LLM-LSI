@@ -6,18 +6,16 @@ from tkinter import simpledialog, scrolledtext, messagebox
 import sys
 import time
 import hashlib
-# Librarii pentru informatii sistem
 import platform
 import psutil
 import os
-# Librarii pentru interfata grafica moderna
 import ttkbootstrap as tb
 from tkinter import ttk
 
 HOST = 'iulianddd.ddns.net'
 PORT = 5555
 
-# --- STIL CHAT (Culorile primare sunt preluate de ttkbootstrap) ---
+# --- STIL CHAT (FARA INDENTARE, FARA SPATII MARGINALE) ---
 FONT_FAMILY = "Segoe UI"
 FONT_SIZE = 10
 COLOR_TEXT = "#ffffff"
@@ -29,8 +27,6 @@ def get_user_color(nickname):
     """Genereaza o culoare unica pentru user bazata pe numele lui."""
     hash_object = hashlib.sha1(nickname.encode('utf-8'))
     hex_dig = hash_object.hexdigest()
-
-    # Generam culori deschise
     r = int(hex_dig[0:2], 16) % 100 + 155
     g = int(hex_dig[2:4], 16) % 100 + 155
     b = int(hex_dig[4:6], 16) % 100 + 155
@@ -38,17 +34,14 @@ def get_user_color(nickname):
 
 
 def get_system_info():
-    """Colecteaza informatiile hardware locale (OS, CPU, RAM, GPU, VRAM)."""
+    """Colecteaza informatiile hardware locale."""
     info = {
         "OS": f"{platform.system()} {platform.release()}",
         "CPU": platform.processor(),
         "RAM": f"{round(psutil.virtual_memory().total / (1024 ** 3), 2)} GB",
-        # Detaliile GPU sunt setate generic pentru portabilitate:
         "GPU": "Necunoscută",
         "VRAM": "N/A"
     }
-
-    # Incearca sa obtina numele procesorului mai detaliat
     try:
         if platform.system() == "Windows":
             info["CPU"] = os.popen('wmic cpu get name').read().strip().split('\n')[-1].strip()
@@ -56,17 +49,13 @@ def get_system_info():
             info["CPU"] = os.popen("lscpu | grep 'Model name'").read().split(':')[-1].strip()
     except Exception:
         pass
-
     return info
 
 
 PERSONALITIES = [
-    "Expert IT (Cortex)", "Expert Contabil", "Avocat Corporatist",
-    "Project Manager", "Medic (Consultant)", "Expert CyberSecurity",
-    "UX/UI Designer", "Data Scientist", "HR Manager", "Marketing Strategist",
-    "Business Analyst", "DevOps Engineer", "Quality Assurance (QA)",
-    "Startup Founder", "Profesor Istorie", "Psiholog Organizational",
-    "Investitor VC", "Jurnalist Tech", "Consultant GDPR", "Expert Logistică"
+    "Mediator Comic", "Receptor (Analist)", "Expert Juridic",
+    "Evaluator Proiecte", "Expert HR", "Business Analist (BA)",
+    "Expert Logistică"
 ]
 
 
@@ -81,7 +70,7 @@ class ClientGui:
         self.system_info = get_system_info()
         self.gui_done = False
         self.running = True
-        self.current_ai_role = "Expert IT (Cortex)"
+        self.current_ai_role = PERSONALITIES[0]
         self.current_ai_model = "Necunoscut"
         self.is_ai_on = True
         self.user_tags = {}
@@ -115,7 +104,7 @@ class ClientGui:
             self.sock.connect((HOST, PORT))
             self.sock.settimeout(None)
 
-            # La conectare, trimitem imediat informatiile sistemului catre server
+            # Trimitem informatiile sistemului catre server
             info_message = (
                 f"SYS:JOIN_INFO:{self.nickname}|"
                 f"OS:{self.system_info['OS']}|"
@@ -180,15 +169,28 @@ class ClientGui:
                                                    relief=tk.FLAT)
         self.text_area.pack(expand=True, fill='both')
         self.text_area.config(state='disabled',
-                              bg=self.win.style.colors.bg)
+                              bg=self.win.style.colors.bg,
+                              wrap=tk.WORD)  # Asiguram word wrap pentru EOL automat
 
         # --- CONFIGURARE TAG-URI ---
+
+        # AI: Fara indentare, Font 8, Italic
         self.text_area.tag_config('ai_style', foreground=COLOR_AI_TEXT, font=(FONT_FAMILY, 8, "italic"), justify='left')
-        self.text_area.tag_config('user_indent', justify='left', lmargin1=40, lmargin2=40)
+
+        # OAMENI (Standard): Fara indentare, Font 10
+        self.text_area.tag_config('normal', font=(FONT_FAMILY, FONT_SIZE), justify='left')
+
+        # Mesaje de sistem
         self.text_area.tag_config('sys_tag', foreground="#ff8a80", font=(FONT_FAMILY, 9), justify='left')
+
+        # Mesajele tale (culoarea ta, bold)
         self.text_area.tag_config('me_tag', foreground=ACCENT_COLOR, font=(FONT_FAMILY, FONT_SIZE, "bold"))
+
+        # Text bold
         self.text_area.tag_config('bold', foreground=COLOR_TEXT, font=(FONT_FAMILY, FONT_SIZE, "bold"))
-        self.text_area.tag_config('tech_info', foreground="#80deea", font=(FONT_FAMILY, 8))  # Info tehnice
+
+        # Info tehnice (pentru bara de status/join)
+        self.text_area.tag_config('tech_info', foreground="#80deea", font=(FONT_FAMILY, 8))
 
         # --- BARA DE STATUS (Status Bar) ---
         self.status_label = ttk.Label(self.win, text="Se conectează...", anchor="w",
@@ -220,7 +222,7 @@ class ClientGui:
 
         self.win.mainloop()
 
-    # --- Logica Butoane si Configurare ---
+    # --- Logica Butoane si Configurare (Metode neschimbate) ---
 
     def toggle_ai_state(self):
         """Porneste/Opreste AI-ul si trimite semnal la server."""
@@ -282,7 +284,7 @@ class ClientGui:
         sys.exit()
 
     def display_join_info(self, clean_message):
-        """Afiseaza detaliile tehnice ale unui utilizator care s-a alaturat."""
+        """Afiseaza detaliile tehnice simplificate ale unui utilizator care s-a alaturat."""
         parts = clean_message.split('|')
 
         info = {"IP": "N/A"}
@@ -293,44 +295,61 @@ class ClientGui:
 
         nickname = info.get('NICKNAME', 'Anonim')
 
-        self.text_area.insert('end', f"\n--- Detalii Conectare {nickname} ---\n", 'sys_tag')
-        self.text_area.insert('end', f"  IP Client: {info.get('IP')}\n", 'tech_info')
-        self.text_area.insert('end', f"  SO: {info.get('OS')} | CPU: {info.get('CPU')}\n", 'tech_info')
-        self.text_area.insert('end', f"  RAM: {info.get('RAM')} | GPU: {info.get('GPU')} | VRAM: {info.get('VRAM')}\n",
-                              'tech_info')
-        self.text_area.insert('end', f"---------------------------------\n\n", 'sys_tag')
+        # Formatare compacta: Nume s-a conectat! (IP | CPU | OS | RAM)
+        tech_line = (
+            f"({info.get('IP')} | "
+            f"{info.get('CPU').split(' Processor')[0].strip()} | "
+            f"{info.get('OS')} | "
+            f"{info.get('RAM')})"
+        )
+
+        # Afisam mesajul de alaturare principal
+        self.text_area.insert('end', f"{nickname} s-a conectat! ", 'bold')
+
+        # Afisam detaliile tehnice cu font mic si culoare stearsa
+        self.text_area.insert('end', tech_line + "\n", 'tech_info')
+
+        # Adaugam o linie goala de separare
+        self.text_area.insert('end', "\n", 'sys_tag')
 
     def receive(self):
         # Aici ascultam mesajele care vin de la server
+        first_message_received = False
         while self.running:
             try:
                 message = self.sock.recv(1024).decode('utf-8')
                 if self.gui_done:
                     self.text_area.config(state='normal')
 
+                    # Curatam fereastra la primirea primului mesaj de stare
+                    if not first_message_received and message.startswith("SYS:"):
+                        self.text_area.delete('1.0', tk.END)
+                        first_message_received = True
+
                     if message.startswith("SYS:"):
                         clean = message.replace("SYS:", "")
 
-                        # Tratare mesaje de join cu info tehnice
+                        # 1. Tratare mesaje de join cu info tehnice (afisam doar info)
                         if clean.startswith("JOIN_INFO:"):
                             self.display_join_info(clean.replace("JOIN_INFO:", ""))
 
-                        # Actualizare status bar si ROL/MODEL AI
-                        if "AI ACTIV:" in clean:
-                            self.current_ai_model = clean.split("AI ACTIV: ")[1].strip()
-                        if "ROL INIȚIAL:" in clean or "PERSONALITATE SCHIMBATA ÎN:" in clean:
-                            new_role = clean.split(": ")[1].strip()
-                            self.current_ai_role = new_role
-                            self.pers_combo.set(new_role)
+                        # 2. Mesajele de sistem normale (care nu sunt JOIN_INFO)
+                        else:
+                            # Actualizare status bar si ROL/MODEL AI
+                            if "AI ACTIV:" in clean:
+                                self.current_ai_model = clean.split("AI ACTIV: ")[1].strip()
+                            elif "ROL INIȚIAL:" in clean or "PERSONALITATE SCHIMBATA ÎN:" in clean:
+                                new_role = clean.split(": ")[1].strip()
+                                self.current_ai_role = new_role
+                                self.pers_combo.set(new_role)
 
-                        self.update_status_bar()  # Actualizam bara de status
+                            self.update_status_bar()
 
-                        # Afisam mesajul de sistem simplu
-                        if not clean.startswith("JOIN_INFO:"):
+                            # Afisam mesajul de sistem (ex: Ora conexiune, ROL, etc.)
                             self.text_area.insert('end', f"⚠ {clean}\n", 'sys_tag')
 
                     elif "AI (" in message:
-                        # Mesaj primit de la AI - FARA INDENTARE, stil AI (font 8, italic)
+                        # Mesaj primit de la AI - FARA INDENTARE
                         parts = message.split(":", 1)
                         if len(parts) > 1:
                             u_name = parts[0] + ":"
@@ -342,7 +361,7 @@ class ClientGui:
                             self.text_area.insert('end', message + "\n", 'ai_style')
 
                     else:
-                        # Mesaj primit de la un user - INDENTAT, stil utilizator (font 10)
+                        # Mesaj primit de la un user - FARA INDENTARE
                         if ":" in message:
                             parts = message.split(":", 1)
                             u_name = parts[0]
@@ -355,16 +374,18 @@ class ClientGui:
                                                           font=(FONT_FAMILY, FONT_SIZE, "bold"))
 
                             user_name_tag = f'user_name_{u_name}'
-                            user_tags_combined = ('user_indent',)
 
+                            # APLICARE SIMPLIFICATĂ FARA INDENTARE
                             if u_name == self.nickname:
-                                self.text_area.insert('end', f"{u_name}: ", 'me_tag', *user_tags_combined)
-                                self.text_area.insert('end', u_msg + "\n", *user_tags_combined)
+                                # Mesajele tale folosesc me_tag
+                                self.text_area.insert('end', f"{u_name}: ", 'me_tag')
+                                self.text_area.insert('end', u_msg + "\n", 'normal')
                             else:
-                                self.text_area.insert('end', u_name + ": ", user_name_tag, *user_tags_combined)
-                                self.text_area.insert('end', u_msg + "\n", *user_tags_combined)
+                                # Mesajele altor useri folosesc user_name_tag + normal
+                                self.text_area.insert('end', u_name + ": ", user_name_tag)
+                                self.text_area.insert('end', u_msg + "\n", 'normal')
                         else:
-                            self.text_area.insert('end', message + "\n", 'user_indent')
+                            self.text_area.insert('end', message + "\n", 'normal')
 
                     self.text_area.yview('end')
                     self.text_area.config(state='disabled')
