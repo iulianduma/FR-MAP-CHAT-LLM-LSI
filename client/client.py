@@ -149,7 +149,7 @@ class ClientGui:
                                   justify='left')
 
         # OAMENI: Font 10, normal/bold, culoare, și Indentare 40px
-        self.text_area.tag_config('user_indent',
+        self.text_area.tag_config('',
                                   font=(FONT_FAMILY, FONT_SIZE),
                                   justify='left',
                                   lmargin1=40,
