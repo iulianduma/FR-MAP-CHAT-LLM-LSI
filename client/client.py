@@ -15,8 +15,8 @@ FONT_FAMILY = "Segoe UI"
 FONT_SIZE = 10
 
 # Culori pentru stabilitate și lizibilitate
-COLOR_BG = "#2e2e2e"  # Fundal fereastra (Gri închis)
-COLOR_CHAT_BG = "#3c3c3c"  # Fundal zona de text
+COLOR_BG = "#7eb072"  # Fundal fereastra (Gri închis)
+COLOR_CHAT_BG = "#a9cf9d"  # Fundal zona de text
 COLOR_TEXT = "#f0f0f0"  # Text alb
 COLOR_BTN_TEXT = "#000000"
 COLOR_AI_TEXT = "#90caf9"  # Albastru deschis pentru AI
@@ -75,7 +75,7 @@ class ClientGui:
     def gui_loop(self):
         self.win = tk.Tk()
         self.win.title(f"Team Chat - {self.nickname}")
-        self.win.geometry("800x650")
+        self.win.geometry("1500x500")
         self.win.configure(bg=COLOR_BG)
 
         try:
