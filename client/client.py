@@ -10,23 +10,27 @@ import hashlib
 HOST = 'iulianddd.ddns.net'
 PORT = 5555
 
-# --- TEMĂ MODERN INDIGO/ALBASTRU DESCHIS ---
+# --- TEMĂ MODERN CHAT (STIL WHATSAPP LIGHT) ---
 FONT_FAMILY = "Segoe UI"
 FONT_SIZE = 10
 
-COLOR_BG = "#e8efff"  # Indigo foarte deschis (nou)
-COLOR_CHAT_BG = "#ffffff"
-COLOR_TEXT = "#212529"
-COLOR_BTN = "#4361ee"
-COLOR_BTN_TEXT = "#ffffff"
+# Culorile cerute de utilizator
+COLOR_BG = "#a2a7f5"  # Fundal fereastra (Light Indigo)
+COLOR_CHAT_BG = "#d1d2e6"  # Fundal zona de text (Muted Light Purple)
 
-COLOR_AI_TEXT = "#495057"
+# Alte culori pentru contrast
+COLOR_TEXT = "#212529"  # Text negru/gri închis
+COLOR_BTN = "#4361ee"  # Albastru primar
+COLOR_BTN_TEXT = "#ffffff"
+COLOR_AI_TEXT = "#495057"  # Gri închis pentru citate AI
 
 
 def get_user_color(nickname):
+    """Generează o culoare pastelată unică pe baza numelui utilizatorului."""
     hash_object = hashlib.sha1(nickname.encode('utf-8'))
     hex_dig = hash_object.hexdigest()
 
+    # Asigură o culoare deschisă/pastelată
     r = int(hex_dig[0:2], 16) % 150 + 50
     g = int(hex_dig[2:4], 16) % 150 + 50
     b = int(hex_dig[4:6], 16) % 150 + 50
@@ -83,18 +87,46 @@ class ClientGui:
             self.win.destroy()
             sys.exit()
 
-        header = tk.Frame(self.win, bg="white", height=50)
+        # 1. Header (Titlu)
+        header = tk.Frame(self.win, bg="white", height=30)
         header.pack(fill='x', side='top')
-        tk.Label(header, text="Echo Team Chat", font=(FONT_FAMILY, 12, "bold"), bg="white", fg=COLOR_TEXT).pack(pady=10)
+        tk.Label(header, text=f"Team Chat - {self.nickname}", font=(FONT_FAMILY, 12, "bold"), bg="white",
+                 fg=COLOR_TEXT).pack(pady=5)
 
+        # 2. Control Frame (Dropdowns)
+        control_frame = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=5)
+        control_frame.pack(fill='x', side='top')
+
+        # --- Dropdown Personalitate ---
+        tk.Label(control_frame, text="Rol AI:", bg=COLOR_BG, fg=COLOR_TEXT, font=(FONT_FAMILY, 9, "bold")).pack(
+            side="left", padx=(0, 5))
+        self.pers_var = tk.StringVar(self.win, value=self.current_ai_role)
+        self.pers_combo = ttk.Combobox(control_frame, textvariable=self.pers_var, values=PERSONALITIES,
+                                       state="readonly", width=20, font=(FONT_FAMILY, 9))
+        self.pers_combo.pack(side="left", padx=(0, 15))
+        self.pers_combo.bind("<<ComboboxSelected>>", self.send_pers_config)
+
+        # --- Dropdown Cache ---
+        CACHE_OPTIONS = [str(i) for i in range(5, 51, 5)]  # 5, 10, 15, ..., 50
+        tk.Label(control_frame, text="Istoric Cache:", bg=COLOR_BG, fg=COLOR_TEXT, font=(FONT_FAMILY, 9, "bold")).pack(
+            side="left", padx=(0, 5))
+        self.cache_var = tk.StringVar(self.win, value="30")
+        self.cache_combo = ttk.Combobox(control_frame, textvariable=self.cache_var, values=CACHE_OPTIONS,
+                                        state="readonly", width=5, font=(FONT_FAMILY, 9))
+        self.cache_combo.pack(side="left")
+        self.cache_combo.bind("<<ComboboxSelected>>", self.send_cache_config)
+
+        # 3. Chat Area
         frame_chat = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=10)
         frame_chat.pack(expand=True, fill='both')
 
+        # Text Area cu Fundalul cerut (#d1d2e6)
         self.text_area = scrolledtext.ScrolledText(frame_chat, bg=COLOR_CHAT_BG, fg=COLOR_TEXT,
                                                    font=(FONT_FAMILY, FONT_SIZE), bd=0, padx=10, pady=10)
         self.text_area.pack(expand=True, fill='both')
         self.text_area.config(state='disabled')
 
+        # Configurare Tag-uri
         self.text_area.tag_config('normal', font=(FONT_FAMILY, FONT_SIZE))
         self.text_area.tag_config('ai_style', foreground=COLOR_AI_TEXT, font=(FONT_FAMILY, FONT_SIZE, "italic"))
         self.text_area.tag_config('sys_tag', foreground="#dc3545", font=(FONT_FAMILY, 9))
@@ -107,11 +139,11 @@ class ClientGui:
         self.text_area.insert('end', f"{self.nickname} s-a alăturat!\n", 'bold')
         self.text_area.config(state='disabled')
 
+        # 4. Input Frame
         input_frame = tk.Frame(self.win, bg="white", pady=10, padx=10)
         input_frame.pack(fill='x', side='bottom')
 
-        tk.Button(input_frame, text="⚙", bg="#e9ecef", fg=COLOR_TEXT, font=(FONT_FAMILY, 10), bd=0, padx=10, pady=5,
-                  command=self.open_settings).pack(side="left", padx=(0, 5))
+        # Am eliminat butonul '⚙'
 
         self.input_area = tk.Entry(input_frame, bg="#e9ecef", fg=COLOR_TEXT, font=(FONT_FAMILY, 11), relief="flat",
                                    bd=5)
@@ -130,46 +162,22 @@ class ClientGui:
 
         self.win.mainloop()
 
-    def open_settings(self):
-        top = tk.Toplevel(self.win)
-        top.title("Setări Agent AI")
-        top.geometry("350x300")
-        top.configure(bg=COLOR_CHAT_BG)
-
-        tk.Label(top, text="Alege Rolul AI:", font=(FONT_FAMILY, 10, "bold"), bg=COLOR_CHAT_BG, fg=COLOR_TEXT).pack(
-            pady=(20, 5))
-
-        self.pers_var = tk.StringVar(top, value=self.current_ai_role)
-        combo = ttk.Combobox(top, textvariable=self.pers_var, values=PERSONALITIES, state="readonly", width=30,
-                             font=(FONT_FAMILY, 10))
-        combo.pack(pady=5)
-
-        tk.Label(top, text="Limitează Istoricul (Mesaje, 5-50):", font=(FONT_FAMILY, 10, "bold"), bg=COLOR_CHAT_BG,
-                 fg=COLOR_TEXT).pack(pady=(15, 5))
-
-        self.cache_var = tk.StringVar(top, value="30")
-        cache_input = tk.Entry(top, textvariable=self.cache_var, width=10, font=(FONT_FAMILY, 10))
-        cache_input.pack(pady=5)
-
-        tk.Button(top, text="Aplică Schimbarea", bg=COLOR_BTN, fg=COLOR_BTN_TEXT, font=(FONT_FAMILY, 10, "bold"), bd=0,
-                  pady=5,
-                  command=self.apply_all_settings).pack(pady=15)
-
-    def apply_all_settings(self):
+    # --- Funcții de Configurare Directă ---
+    def send_pers_config(self, event=None):
         pers_value = self.pers_var.get()
         self.send_config("PERS", pers_value)
         self.current_ai_role = pers_value
 
+    def send_cache_config(self, event=None):
+        cache_value = self.cache_var.get()
         try:
-            cache_limit = int(self.cache_var.get())
+            cache_limit = int(cache_value)
             if 5 <= cache_limit <= 50:
                 self.send_config("CACHE", str(cache_limit))
             else:
                 messagebox.showerror("Eroare", "Limita de istoric trebuie să fie între 5 și 50.")
         except ValueError:
             messagebox.showerror("Eroare", "Limita de istoric trebuie să fie un număr întreg.")
-
-        messagebox.showinfo("Info", "Configurația a fost actualizată.")
 
     def send_config(self, type, value):
         msg = f"CFG:{type}:{value}"
