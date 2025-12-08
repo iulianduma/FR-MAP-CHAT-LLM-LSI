@@ -205,6 +205,7 @@ class ClientGui:
         self.win.mainloop()
 
     # --- Funcții de Configurare Directă (pentru AI) ---
+    # bla bla bla
     def send_pers_config(self, event=None):
         pers_value = self.pers_var.get()
         self.send_config("PERS", pers_value)
