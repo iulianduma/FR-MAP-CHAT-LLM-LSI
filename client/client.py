@@ -21,7 +21,6 @@ COLOR_TEXT = "#f0f0f0"  # Text alb
 COLOR_BTN_TEXT = "#000000"
 COLOR_AI_TEXT = "#90caf9"  # Albastru deschis pentru AI
 
-# Setată dinamic
 ACCENT_COLOR = "#4361ee"
 
 
@@ -49,16 +48,17 @@ PERSONALITIES = [
 
 class ClientGui:
     def __init__(self):
-        # Setăm culoarea de accent dinamică înainte de GUI
-        global ACCENT_COLOR
-        ACCENT_COLOR = get_user_color(self.nickname)
-
         msg = tk.Tk()
         msg.withdraw()
 
+        # FIX: SOLICITAREA NICKNAME-ULUI (Definit înainte de utilizare)
         self.nickname = simpledialog.askstring("Autentificare", "Numele tău:", parent=msg)
         if not self.nickname:
             sys.exit()
+
+        # CALCULAREA CULORII DE ACCENT
+        global ACCENT_COLOR
+        ACCENT_COLOR = get_user_color(self.nickname)
 
         self.gui_done = False
         self.running = True
@@ -68,13 +68,14 @@ class ClientGui:
         self.current_ai_model = "Necunoscut"
         self.current_ai_role = "Expert IT (Cortex)"
         self.user_tags = {}
+        self.max_words = 50
 
         self.gui_loop()
 
     def gui_loop(self):
         self.win = tk.Tk()
         self.win.title(f"Team Chat - {self.nickname}")
-        self.win.geometry("800x600")
+        self.win.geometry("800x650")
         self.win.configure(bg=COLOR_BG)
 
         try:
@@ -96,7 +97,7 @@ class ClientGui:
         tk.Label(header, text=f"Team Chat - {self.nickname}", font=(FONT_FAMILY, 12, "bold"), bg="#3c3c3c",
                  fg=COLOR_TEXT).pack(pady=5)
 
-        # 2. Control Frame (Dropdowns)
+        # 2. Control Frame (Dropdowns + Slider)
         control_frame = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=5)
         control_frame.pack(fill='x', side='top')
 
@@ -116,15 +117,27 @@ class ClientGui:
         self.cache_var = tk.StringVar(self.win, value="30")
         self.cache_combo = ttk.Combobox(control_frame, textvariable=self.cache_var, values=CACHE_OPTIONS,
                                         state="readonly", width=5, font=(FONT_FAMILY, 9))
-        self.cache_combo.pack(side="left")
+        self.cache_combo.pack(side="left", padx=(0, 15))
         self.cache_combo.bind("<<ComboboxSelected>>", self.send_cache_config)
+
+        # --- Slider Limită Cuvinte AI ---
+        tk.Label(control_frame, text="Max Cuvinte AI:", bg=COLOR_BG, fg=COLOR_TEXT,
+                 font=(FONT_FAMILY, 10, "bold")).pack(side="left", padx=(10, 5))
+
+        self.words_var = tk.IntVar(value=self.max_words)
+        self.words_slider = tk.Scale(control_frame, from_=10, to=100, orient=tk.HORIZONTAL, resolution=10,
+                                     variable=self.words_var, command=self.send_word_limit_config,
+                                     label="", troughcolor="#4caf50", sliderrelief=tk.FLAT, bd=0,
+                                     bg=COLOR_BG, fg=COLOR_TEXT, highlightthickness=0)
+        self.words_slider.pack(side="left")
 
         # 3. Chat Area
         frame_chat = tk.Frame(self.win, bg=COLOR_BG, padx=10, pady=10)
         frame_chat.pack(expand=True, fill='both')
 
         self.text_area = scrolledtext.ScrolledText(frame_chat, bg=COLOR_CHAT_BG, fg=COLOR_TEXT,
-                                                   font=(FONT_FAMILY, FONT_SIZE), bd=0, padx=10, pady=10)
+                                                   font=(FONT_FAMILY, FONT_SIZE), bd=1, padx=10, pady=10,
+                                                   relief=tk.FLAT)
         self.text_area.pack(expand=True, fill='both')
         self.text_area.config(state='disabled')
 
@@ -180,6 +193,10 @@ class ClientGui:
         except ValueError:
             messagebox.showerror("Eroare", "Limita de istoric trebuie să fie un număr întreg.")
 
+    def send_word_limit_config(self, value):
+        self.max_words = int(value)
+        self.send_config("WORDS", str(self.max_words))
+
     def send_config(self, type, value):
         msg = f"CFG:{type}:{value}"
         try:
@@ -229,6 +246,13 @@ class ClientGui:
                             new_limit = clean.split("LIMITA ISTORIC SETATĂ LA: ")[1].strip()
                             self.cache_combo.set(new_limit)
 
+                        if "LIMITA CUVINTE AI SETATĂ LA:" in clean:
+                            new_limit = clean.split("LIMITA CUVINTE AI SETATĂ LA: ")[1].strip()
+                            try:
+                                self.words_slider.set(int(new_limit))
+                            except ValueError:
+                                pass
+
                         if "AI ACTIV:" in clean:
                             self.current_ai_model = clean.split("AI ACTIV: ")[1].strip()
                         if "ROL INIȚIAL:" in clean:
@@ -255,24 +279,24 @@ class ClientGui:
                                 self.user_tags[u_name] = user_color
                                 self.text_area.tag_config(f'user_name_{u_name}', foreground=user_color,
                                                           font=(FONT_FAMILY, FONT_SIZE, "bold"))
-                                self.text_area.tag_config(f'user_msg_{u_name}', foreground=user_color,
+                                self.text_area.tag_config(f'user_msg_{u_name}', foreground=COLOR_TEXT,
                                                           font=(FONT_FAMILY, FONT_SIZE))
 
                             user_name_tag = f'user_name_{u_name}'
-                            user_msg_tag = f'user_msg_{u_name}'
 
                             if u_name == self.nickname:
                                 self.text_area.insert('end', f"{u_name}: ", 'me_tag')
                                 self.text_area.insert('end', u_msg + "\n", 'normal')
                             else:
                                 self.text_area.insert('end', u_name + ": ", user_name_tag)
-                                self.text_area.insert('end', u_msg + "\n", user_msg_tag)
+                                self.text_area.insert('end', u_msg + "\n", 'normal')
                         else:
                             self.text_area.insert('end', message + "\n", 'normal')
 
                     self.text_area.yview('end')
                     self.text_area.config(state='disabled')
-            except:
+            except Exception as e:
+                print(f"FATAL RECEIVE THREAD CRASH: {e}")
                 break
 
 
