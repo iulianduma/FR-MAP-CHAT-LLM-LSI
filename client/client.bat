@@ -46,5 +46,4 @@ echo.
 :: Daca aplicatia se inchide cu succes, scriptul continua.
 python client.py
 
-echo.
-echo Aplicatia client s-a inchis.
+
