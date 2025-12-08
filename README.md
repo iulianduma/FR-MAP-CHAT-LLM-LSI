@@ -2,90 +2,86 @@
  
 Proiectul implementeaza un sistem de chat multi-utilizator bazat pe socket-uri, echipat cu un Agent LLM (Large Language Model) activ in conversatie. Obiectivul principal este de a sincroniza mediul de lucru al AI-ului (rol, stare, istoric) intre toti clientii si de a oferi o solutie de comunicare stabila, moderna si transparenta. 
  
+Sistemul este proiectat pentru a rula intr-un mediu de productie pe un server Linux, utilizand **Docker** pentru containerizare si un pipeline automatizat de **CI/CD** legat de GitHub. 
+ 
 --- 
  
-## ️ Tehnologii Utilizate 
+##️ Tehnologii Utilizate 
  
 | Componenta | Tehnologie | Scop | 
 | :--- | :--- | :--- | 
 | **Agent LLM** | Google Gemini (models/gemini-2.5-flash) | Analiza conversatiei, interventie bazata pe rol (Ex: Expert IT, PM, etc.). | 
 | **Interfata Client** | Python (Tkinter + **ttkbootstrap**) | Interfata grafica moderna, Dark Mode, managementul configuratiei locale. | 
-| **Backend Server** | Python (Socket Programming) | Gateway pentru clienti si API-ul Gemini; sincronizare stare AI si istoric. | 
-| **Colectare Info** | `psutil`, `platform` | Colectarea informatiilor hardware (CPU, RAM, OS) ale clientilor la conectare. | 
+| **Backend Server** | Python (Socket), **Docker** | Gateway pentru clienti; sincronizare stare AI; izolare in container. | 
+| **CI/CD** | Bash Scripting, Git, Crontab | Actualizare automata a codului de pe GitHub la fiecare 5 secunde. | 
  
 --- 
  
-##  Structura de Fisiere 
+## Structura de Fisiere 
  
 ``` 
 . 
-|| client 
-|| || client.py               || # Codul clientului (Interfata grafica si logica de retea) 
-|| || install_dependencies.bat || # Script pentru instalarea dependintelor (Client) 
-|| || start_client_minimized.bat || # Script pentru rularea clientului (Fara fereastra CMD) 
-|| server 
-|| || server.py               || # Codul serverului (Gateway API Gemini, Socket Server, Logica AI) 
-|| README.md                 || # Acest fisier 
-|| ... 
+|| client/ 
+|| || client.py               || # Codul clientului (GUI si logica retea) 
+|| || install_dependencies.bat || # Instalare librarii necesare client (Windows) 
+|| || start_client_minimized.bat || # Rulare client minimizat 
+|| server/ 
+|| || server.py               || # Codul serverului (Socket + AI Logic) 
+|| || Dockerfile              || # Configuratia imaginii Docker 
+|| || docker-compose.yml      || # Orchestarea containerelor 
+|| DevOps/ 
+|| || auto_deploy.sh          || # Script verificare GitHub si update Docker 
+|| || restart.sh              || # Script manual/fortat de restart server 
+|| README.md                 || # Documentatia proiectului 
 ``` 
  
 --- 
  
-## ️ Cerinte 
+##  Integrare CI/CD si Docker (Server-Side) 
  
-1.  **Python 3.8+** instalat si adaugat in PATH. 
-2.  **Cheie API Gemini:** Variabila de mediu `GEMINI_API_KEY` trebuie setata pe masina care ruleaza `server.py`. 
+Proiectul ruleaza pe un server real Linux (`root@lnxserver`), asigurand disponibilitate continua. Arhitectura include un mecanism de **auto-deployment** care sincronizeaza serverul cu repository-ul GitHub. 
  
---- 
+### 1. Auto-Deployment (`auto_deploy.sh`) 
+Acest script este inima sistemului CI/CD. Ruleaza automat (via Crontab/Loop) si verifica la fiecare cateva secunde daca au aparut modificari (commit-uri noi) pe branch-ul `main`. 
  
-##  Rulare si Comenzi 
+**Fluxul de executie:** 
+1.  Executa `git fetch` pentru a interoga GitHub. 
+2.  Compara hash-ul commit-ului local cu cel remote (`HEAD` vs `origin/main`). 
+3.  **Daca exista diferente:** 
+    * Descarca noul cod (`git pull`). 
+    * Reconstruieste containerele Docker (`docker-compose up -d --build`). 
+    * Curata imaginile vechi pentru a economisi spatiu (`docker image prune`). 
  
-### 1. Instalarea Dependentelor (Client) 
- 
-Deschideti un terminal (CMD/PowerShell) in directorul `client/` si rulati: 
- 
-```bash 
-.\install_dependencies.bat 
-``` 
- 
-Acest script va instala automat `ttkbootstrap`, `psutil` si `google-generativeai` (desi ultima este necesara doar pe server, se recomanda instalarea peste tot). 
- 
-### 2. Pornirea Serverului 
- 
-Asigurati-va ca aveti setata variabila `GEMINI_API_KEY`! 
-Deschideti un terminal in directorul `server/` si rulati: 
+### 2. Management Docker (`restart.sh`) 
+Un script utilitar folosit pentru a forta repornirea mediului sau pentru mentenanta manuala. Acesta asigura ca folderul proiectului exista, apeleaza optional `auto_deploy.sh` si apoi reconstruieste si porneste containerele in modul *detached*. 
  
 ```bash 
-python server.py 
-``` 
- 
-### 3. Pornirea Clientului 
- 
-Rulati scriptul pentru a porni clientul in modul minimizat (fara fereastra de consola): 
- 
-```bash 
-.\start_client_minimized.bat 
+# Exemplu rulare manuala pe server: 
+./restart.sh 
 ``` 
  
 --- 
  
-##  Descrierea Detaliata a Proiectului 
+##  Rulare Client (Windows) 
  
-### A. Sincronizarea Starii AI 
+1.  **Instalare Dependente:** 
+    Executati `client/setup.bat` pentru a instala `ttkbootstrap` si `psutil`. 
  
-Serverul mentine o singura stare globala pentru Agentul LLM (rol, limita de istoric, stare ON/OFF). Toate modificarile facute de **orice** client (ex: schimbarea din "Expert IT" in "Avocat") sunt transmise catre server, care actualizeaza setarile globale si notifica imediat toti ceilalti clienti. Acest lucru asigura ca toti utilizatorii vad aceeasi interventie din partea AI-ului si au aceleasi optiuni de configurare. 
+2.  **Pornire Aplicatie:** 
+    Executati `client/client.bat`. Aplicatia se va deschide, cerand numele de utilizator. 
  
-### B. Resetarea Contextului 
+--- 
  
-In cazul in care se schimba personalitatea AI-ului (Dropdown "Rol AI"), serverul executa automat o resetare a `conversation_history`. Acest lucru previne ca noul rol (ex: "Avocat") sa fie influentat de subiectele discutate anterior de rolul precedent (ex: "Expert IT"). 
+##  Functionalitati Cheie 
  
-### C. Interfata Utilizator (ttkbootstrap) 
+### A. Agent AI Contextual 
+* **Sincronizare:** Schimbarea rolului AI (ex: din "Expert IT" in "Avocat") de catre un utilizator actualizeaza instantaneu contextul pentru toata echipa. 
+* **Resetare Memorie:** La schimbarea rolului, istoricul AI-ului este sters automat pentru a evita "halucinatiile" cauzate de contextul anterior. 
  
-Interfata grafica a fost modernizata folosind **ttkbootstrap** (tema `darkly`), oferind o estetica moderna si lizibila: 
-* **Indentare Inversata:** Mesajele umane (utilizatori) sunt indentate cu 40px pentru a le separa vizual de raspunsurile AI, care folosesc alinierea de baza (fara indentare). 
-* **Status Bar Extins:** Bara de stare afiseaza permanent informatii critice despre clientul local (OS, CPU, RAM, GPU) si starea globala a AI-ului (Rol, Model). 
-* **Buton AI ON/OFF:** Permite controlul instantaneu asupra Agentului LLM, afectand toti clientii simultan. 
+### B. Interfata Moderna (ttkbootstrap) 
+* **Tematica:** Suport pentru teme multiple (Darkly, Cosmo, Superhero etc.) selectabile din UI. 
+* **Emoticoane:** Panou dedicat pentru inserarea rapida a emoji-urilor. 
+* **Logs:** Posibilitatea de a salva conversatia local intr-un fisier `.txt`. 
  
-### D. Transparenta Hardware 
- 
-La conectare, fiecare client trimite automat serverului informatiile sale hardware locale (obtinute prin `psutil` si `platform`). Serverul adauga adresa IP a conexiunii si propaga aceste detalii catre toti utilizatorii, imbunatatind transparenta si contextul tehnic in cadrul echipei. 
+### C. Transparenta Tehnica 
+La conectare, serverul preia informatiile hardware ale clientului (CPU, RAM, OS) si IP-ul public, afisandu-le discret in chat. Acest lucru ajuta la debugging rapid in echipa (ex: "Problema apare doar pe Windows 10 cu RAM putin"). 
