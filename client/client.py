@@ -189,7 +189,8 @@ class ClientGui:
         except:
             return
 
-        max_emoticons = int(current_width / EMOTICON_WIDTH_PX)
+        # Ajustăm lățimea de calcul pentru a lăsa mai mult spațiu lateral
+        max_emoticons = int(current_width / 75)
         if max_emoticons < 1: max_emoticons = 1
 
         for widget in self.emo_frame.winfo_children():
@@ -197,14 +198,31 @@ class ClientGui:
 
         emoticons_to_draw = EMOTICON_LIST[:max_emoticons]
 
-        for emo_symbol, emo_name in emoticons_to_draw:
-            btn = ttk.Label(self.emo_frame, text=emo_symbol, font=(FONT_FAMILY, 24),
-                            anchor='center', width=2, background=self.win.style.colors.bg)
-            btn.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=5)
-            btn.bind('<Button-1>', lambda e, symbol=emo_symbol: self.insert_emoticon(symbol))
-            # Tooltip-ul a fost eliminat de aici
+        # Dicționar pentru culori personalizate
+        emo_colors = {
+            "Zambet": "#FFD700", "Râs": "#FFD700", "Inimă": "#FF4500", "Foc": "#FF4500",
+            "Bravo": "#1E90FF", "Stea": "#FFD700", "Sută": "#FF0000", "Cod": "#00FF00",
+            "Idee": "#FFFF00", "Rachetă": "#E6E6FA"
+        }
 
-        self.emo_frame.config(height=80)
+        for emo_symbol, emo_name in emoticons_to_draw:
+            # Preluăm culoarea din dicționar sau folosim alb ca default
+            color = emo_colors.get(emo_name, "#ffffff")
+
+            # Folosim tk.Label în loc de ttk.Label pentru un control mai precis al culorii foreground
+            btn = tk.Label(self.emo_frame, text=emo_symbol,
+                           font=("Segoe UI Emoji", 22),  # Redus ușor de la 24 pentru siguranță
+                           anchor='center',
+                           background=self.win.style.colors.bg,
+                           foreground=color,
+                           cursor="hand2")
+
+            # Padding vertical (pady) mărit la 15 pentru a evita tăierea
+            btn.pack(side=tk.LEFT, fill=tk.Y, padx=12, pady=15)
+            btn.bind('<Button-1>', lambda e, symbol=emo_symbol: self.insert_emoticon(symbol))
+
+        # Mărim înălțimea totală a panoului la 100 pentru a găzdui corect fontul
+        self.emo_frame.config(height=100)
 
     def on_window_resize(self, event):
         if event.widget == self.win:
