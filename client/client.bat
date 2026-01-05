@@ -1,41 +1,9 @@
 @echo off
-setlocal
+echo Pornire clientul chat in fundal (minimizat)...
 
-:: =======================================================
-:: Verificare Instalare Python
-:: =======================================================
-echo.
-echo Verificare instalare Python in variabila de mediu PATH...
-python --version 2>nul
-if errorlevel 9009 set errorlevel=1
-if errorlevel 1 (
-    echo.
-    echo [ EROARE FATALA ]: Python nu a fost gasit in PATH.
-    echo.
-    echo Actiuni necesare:
-    echo 1. Asigura-te ca Python 3 este instalat.
-    echo 2. Asigura-te ca Python a fost adaugat la variabila de mediu PATH.
-    echo Scriptul se inchide.
-    echo.
-    pause
-    goto :EOF
-)
+:: Folosim comanda 'start' cu optiunea /min pentru a rula clientul minimizat.
+:: 'pythonw.exe' este folosit in loc de 'python.exe' pentru a ascunde fereastra de consola (CMD) a scriptului.
 
-:: Afiseaza versiunea gasita
-echo SUCCES: Python gasit. Versiunea:
-python --version
+start /min pythonw client.py
 
-:: =======================================================
-:: Rulare Aplicatie Client (Lansare Minimizata)
-:: =======================================================
-echo.
-echo --------------------------------------------------
-echo Se lanseaza client.py. Fereastra terminal va fi minimizata.
-echo --------------------------------------------------
-echo.
-
-:: Folosim START /MIN pentru a lansa procesul minimizat in bara de activitati.
-START /MIN "" python client.py
-
-:: Scriptul se termina.
-goto :EOF
+exit /b 0
