@@ -287,27 +287,18 @@ class ClientGui:
     def display_message(self, message):
         self.text_area.config(state='normal')
         if message.startswith("SYS:"):
-            clean = message.replace("SYS:", "")
-            # Adăugăm caractere de linie nouă înainte de markerii principali pentru a fragmenta textul.
-            for key in ["CONECTAT LA SERVER", "AI ACTIV:", "ROL INIȚIAL:", "ROL:", "JOIN_INFO:"]:
-                clean = clean.replace(key, f"\n{key}")
-            # Verificăm dacă mesajul conține secțiunea de date tehnice JOIN_INFO.
-            if "JOIN_INFO:" in clean:
-                parts = clean.split("\nJOIN_INFO:", 1)
-                # Afișăm textul informativ de dinaintea datelor tehnice.
-                if parts[0].strip():
-                    self.text_area.insert('end', f"⚠ {parts[0].strip()}\n", 'sys_tag')
-                # Trimitem restul datelor către funcția specializată de formatare hardware.
-                self.display_join_info(parts[1])
+            self.text_area.insert('end', f"⚠ {message.replace('SYS:', '')}\n", 'sys_tag')
+        else:
+            if ":" in message:
+                u_name, u_msg = message.split(":", 1)
+                u_msg = replace_emoticons(u_msg)
+                tag = 'me_tag' if u_name == self.nickname else 'normal'
+                self.text_area.insert('end', f"{u_name}: ", tag)
+                self.text_area.insert('end', f"{u_msg}\n", 'normal')
             else:
-                # Actualizăm starea AI-ului chiar dacă informația este inclusă într-un mesaj mai lung.
-                if "AI ACTIV:" in clean:
-                    self.current_ai_model = clean.split("AI ACTIV:")[1].split('\n')[0].strip()
-                if "ROL INIȚIAL:" in clean:
-                    self.current_ai_role = clean.split("ROL INIȚIAL:")[1].split('\n')[0].strip()
-                    self.pers_combo.set(self.current_ai_role)
-                self.update_status_bar()
-                self.text_area.insert('end', f"⚠ {clean.strip()}\n", 'sys_tag')
+                self.text_area.insert('end', f"{message}\n", 'normal')
+        self.text_area.yview('end')
+        self.text_area.config(state='disabled')
     # Principiul Non-blocking I/O: Socket-ul așteaptă date fără a opri execuția restului programului.
     def receive(self):
         while self.running:
