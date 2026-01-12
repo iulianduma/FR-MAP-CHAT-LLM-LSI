@@ -286,7 +286,7 @@ class ClientGui:
     # Principiul Data Parsing: Transformăm șirurile brute de caractere în informații structurate și ușor de citit.
     def display_message(self, message):
         self.text_area.config(state='normal')
-        iif message.startswith("SYS:"):
+        if message.startswith("SYS:"):
             clean = message.replace("SYS:", "")
             # Adăugăm caractere de linie nouă înainte de markerii principali pentru a fragmenta textul.
             for key in ["CONECTAT LA SERVER", "AI ACTIV:", "ROL INIȚIAL:", "ROL:", "JOIN_INFO:"]:
