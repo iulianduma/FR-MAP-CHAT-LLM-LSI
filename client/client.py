@@ -31,7 +31,7 @@ EMOTICON_MAP = {
     "Euro": "💶", "Dolar": "💵", "Ceas": "⏰", "Rachetă": "🚀", "Petrecere": "🎉",
 }
 EMOTICON_LIST = [(v, k) for k, v in EMOTICON_MAP.items()]
-EMOTICON_WIDTH_PX = 60
+EMOTICON_WIDTH_PX = 75 # Principiul Spatierii: Marim zona de protectie pentru a evita suprapunerea la redimensionare
 PERSONALITIES = ["Mediator Comic", "Receptor (Analist)", "Expert Juridic", "Evaluator Proiecte", "Expert HR", "Business Analist (BA)", "Expert Logistică"]
 # Principiul Determinist: Folosim hash-ul numelui pentru a asigura că același utilizator are mereu aceeași culoare.
 def get_user_color(nickname):
@@ -140,17 +140,32 @@ class ClientGui:
             if current_width < 50: current_width = self.win.winfo_width()
         except:
             return
-        max_emoticons = int(current_width / EMOTICON_WIDTH_PX)
+        # Principiul Proporționalității: Calculăm numărul de elemente în funcție de noua lățime de 75px
+        max_emoticons = int(current_width / 75)
         if max_emoticons < 1: max_emoticons = 1
         for widget in self.emo_frame.winfo_children():
             widget.destroy()
         emoticons_to_draw = EMOTICON_LIST[:max_emoticons]
+        # Principiul Mapării Vizuale: Atribuim culori specifice pentru a facilita recunoașterea rapidă a simbolurilor
+        emo_colors = {
+            "Inimă": "#ff4d4d", "Foc": "#ff9800", "Stea": "#ffeb3b",
+            "Bravo": "#4caf50", "Cod": "#00e5ff", "Idee": "#ffeb3b"
+        }
         for emo_symbol, emo_name in emoticons_to_draw:
-            btn = ttk.Label(self.emo_frame, text=emo_symbol, font=(FONT_FAMILY, 24), anchor='center', width=2)
-            btn.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=5)
+            color = emo_colors.get(emo_name, "#ffffff")
+            # Folosim tk.Label pentru a evita limitarile de tema ale ttk care pot bloca culorile personalizate
+            btn = tk.Label(self.emo_frame, text=emo_symbol,
+                           font=("Segoe UI Emoji", 22),
+                           anchor='center',
+                           background=self.win.style.colors.bg,
+                           foreground=color,
+                           cursor="hand2")
+            # Principiul Marginii de Siguranță: pady=15 oferă suficient spațiu sus-jos pentru a preveni tăierea pixelilor
+            btn.pack(side=tk.LEFT, fill=tk.Y, padx=12, pady=15)
             btn.bind('<Button-1>', lambda e, symbol=emo_symbol: self.insert_emoticon(symbol))
-        self.emo_frame.config(height=80)
-    # Principiul Debouncing: Evităm execuția excesivă a funcției de redimensionare prin utilizarea unui timer.
+        # Principiul Adaptării Containerului: Creștem înălțimea la 100px pentru a acomoda fontul și padding-ul
+        self.emo_frame.config(height=100)
+    # Principiul Debouncing: Evităm execuția excesivă a funcției de redimensionare prin utilizarea unui timer
     def on_window_resize(self, event):
         if event.widget == self.win:
             if event.width != self.last_win_width:
