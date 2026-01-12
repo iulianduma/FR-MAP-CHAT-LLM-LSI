@@ -165,7 +165,7 @@ class ClientGui:
             btn.bind('<Button-1>', lambda e, symbol=emo_symbol: self.insert_emoticon(symbol))
         # Principiul Adaptării Containerului: Creștem înălțimea la 100px pentru a acomoda fontul și padding-ul
         self.emo_frame.config(height=100)
-    # Principiul Debouncing: Evităm execuția excesivă a funcției de redimensionare prin utilizarea unui timer.
+    # Principiul Debouncing: Evităm execuția excesivă a funcției de redimensionare prin utilizarea unui timer
     def on_window_resize(self, event):
         if event.widget == self.win:
             if event.width != self.last_win_width:
