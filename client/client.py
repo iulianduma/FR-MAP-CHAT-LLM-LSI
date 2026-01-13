@@ -113,9 +113,20 @@ class ClientGui:
         self.gui_loop()
 
     def filter_available_themes(self):
+        """Verifică și returnează toate temele compatibile instalate în sistem."""
         try:
-            all_available_themes = self.win.style.theme_names()
-            return [theme for theme in ["cosmo", "flatly", "darkly", "vapor"] if theme in all_available_themes]
+            # Obținem lista tuturor temelor suportate de ttkbootstrap pe acest PC
+            all_installed = self.win.style.theme_names()
+
+            # Definim lista completă de teme pe care dorim să le oferim utilizatorului
+            complet_list = [
+                "cosmo", "flatly", "journal", "literal", "lumen", "minty",
+                "pulse", "superhero", "united", "yeti", "solar", "darkly",
+                "cyborg", "vapor"
+            ]
+
+            # Returnăm doar acele teme care se regăsesc în sistem
+            return [t for t in complet_list if t in all_installed]
         except Exception:
             return [self.current_theme]
 
