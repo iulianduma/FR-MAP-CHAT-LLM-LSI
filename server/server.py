@@ -132,7 +132,7 @@ def get_ai_decision(trigger_type="review", explicit_msg=None):
         trigger_text = "[SILENCE_DETECTED] - Discuția a murit. Propune o direcție nouă."
 
     ai_raw_text = call_gemini(context_msgs, trigger_msg=trigger_text) # aici se face efectiv apelul AI. Se trimite contextul + trigger si se primeste un raspuns brut (string)
-    clean_text = ai_raw_text.strip().upper()
+    clean_text = ai_raw_text.strip().upper() 
 
     if clean_text == "PASS" or clean_text == "PASS.": # decizia "nu intervin". Aici AI decide sa nu intervina, doar iese.
         print(f"Gemini ({current_prompt_key}) -> PASS")
@@ -140,6 +140,28 @@ def get_ai_decision(trigger_type="review", explicit_msg=None):
 
     if len(clean_text) > 4: # daca raspunsul este mai lung decat "OK" presupunem ca e mesaj real si returneaza textul AI-ului.
         return ai_raw_text
+    
+    # psudo-cod:
+# dacă AI e oprit → STOP
+
+# context = ultimele mesaje
+
+# dacă trigger = silence
+#     prompt special
+# altfel
+#     prompt = mesaj utilizator
+
+# răspuns = întreabă Gemini
+
+# dacă răspuns = PASS
+#     nu vorbi
+
+# dacă răspuns e „real”
+#     întoarce-l
+
+# altfel
+#     nu vorbi
+
 
     # psudo-cod:
 # dacă AI e oprit → STOP
@@ -211,8 +233,8 @@ def handle_client(client, client_address):
     # client -> socket-ul clientului
     # client_address -> adresa IP + portul clientului
     # trimite mesajele de la client, le interpreteaza si le trimite mai departe (broadcast) sau declanseaza AI-ul.
-    # last_message_time → pentru watchdog-ul de liniște
-
+    # last_message_time → pentru watchdog-ul de liniște 
+    
     global last_message_time, active_system_instruction, current_prompt_key, HISTORY_LIMIT, conversation_history, is_ai_active
     # active_system_instruction → promptul AI
     # current_prompt_key → rolul AI
