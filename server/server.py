@@ -163,6 +163,28 @@ def get_ai_decision(trigger_type="review", explicit_msg=None):
 #     nu vorbi
 
 
+    # psudo-cod:
+# dacă AI e oprit → STOP
+
+# context = ultimele mesaje
+
+# dacă trigger = silence
+#     prompt special
+# altfel
+#     prompt = mesaj utilizator
+
+# răspuns = întreabă Gemini
+
+# dacă răspuns = PASS
+#     nu vorbi
+
+# dacă răspuns e „real”
+#     întoarce-l
+
+# altfel
+#     nu vorbi
+
+
     return None
 
 
