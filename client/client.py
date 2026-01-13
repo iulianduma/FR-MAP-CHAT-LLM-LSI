@@ -19,8 +19,8 @@ from tkinter import ttk
 HOST = 'iulianddd.ddns.net'
 PORT = 5555
 APP_TITLE = "FR-MAP-CHAT-LLM-LSI"
-FONT_FAMILY = "Segoe UI"
-FONT_SIZE = 10
+FONT_FAMILY = "Roboto"
+FONT_SIZE = 11
 COLOR_TEXT = "#ffffff"
 ACCENT_COLOR = "#4361ee"
 
