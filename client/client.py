@@ -231,7 +231,7 @@ class ClientGui:
     def gui_loop(self):
         """Construirea interfeței și stabilirea conexiunii."""
         self.win.title(f"{APP_TITLE} - {self.nickname}")
-        self.win.geometry("500x900")
+        self.win.geometry("600x900")
         self.win.deiconify()
 
         try:
