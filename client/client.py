@@ -248,7 +248,7 @@ class ClientGui:
     # Aici construiesc fereastra vizuala
     def gui_loop(self):
         self.win.title(f"{APP_TITLE} - {self.nickname}")
-        self.win.geometry("600x900")
+        self.win.geometry("650x900")
         self.win.deiconify()
 
         try:
