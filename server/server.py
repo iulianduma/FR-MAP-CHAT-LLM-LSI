@@ -119,30 +119,40 @@ def call_gemini(messages_history, trigger_msg=None):
 
 
 def get_ai_decision(trigger_type="review", explicit_msg=None):
-    # aceasta functie decide daca AI trebuie sa intervina in chat si, daca da, ce text trimite.
-    # trigger_type controleaza de ce este apelata functia. "review" -> a aparut un mesaj nou, "silence" -> nu a mai vorbit nimeni de ceva timp
-    # explicit_msg -> mesajul care declanseaza analiza AI. De obicei ultimul mesaj al unui utilizator. Poate fi None
-    """Decide daca AI trebuie sa intervina."""
+    """
+    Decide dacă AI trebuie să intervină.
+    Corecție: Evită trimiterea mesajului curent de două ori (o dată în istoric, o dată ca trigger).
+    """
     global conversation_history
     if not is_ai_active:
         return None
 
-    context_msgs = conversation_history[
-        -HISTORY_LIMIT:]  # construirea contextului ia ultimele N mesaje din chat. AI trebuie sa stie despre ce se discuta si limitam contextul pentru cost si performanta
+    # --- FIX CRITIC PENTRU VEDERE DUBLĂ ---
+    if trigger_type == "review":
+        # Când analizăm un mesaj nou, el a fost deja adăugat în conversation_history în funcția handle_client.
+        # Așa că îl trimitem la AI pe post de "Trigger", dar îl SCOATEM din contextul istoric.
+        # [:-1] înseamnă "toată lista mai puțin ultimul element".
+        context_msgs = conversation_history[:-1]
+        # De asemenea, luăm doar ultimele N mesaje pentru a nu depăși limita
+        if len(context_msgs) > HISTORY_LIMIT:
+            context_msgs = context_msgs[-HISTORY_LIMIT:]
+    else:
+        # Dacă e "silence", mesajul nou nu există, deci luăm tot istoricul normal.
+        context_msgs = conversation_history[-HISTORY_LIMIT:]
 
-    trigger_text = explicit_msg  # stabilirea promptului. Initial este mesajul utilizatorului
-    if trigger_type == "silence":  # aici fortam un prompt artificial. AI nu raspunde la un utilizator ci la starea conversatiei.
+    trigger_text = explicit_msg
+    if trigger_type == "silence":
         trigger_text = "[SILENCE_DETECTED] - Discuția a murit. Propune o direcție nouă."
 
-    ai_raw_text = call_gemini(context_msgs,
-                              trigger_msg=trigger_text)  # aici se face efectiv apelul AI. Se trimite contextul + trigger si se primeste un raspuns brut (string)
+    # Apelăm AI-ul cu contextul curățat
+    ai_raw_text = call_gemini(context_msgs, trigger_msg=trigger_text)
     clean_text = ai_raw_text.strip().upper()
 
-    if clean_text == "PASS" or clean_text == "PASS.":  # decizia "nu intervin". Aici AI decide sa nu intervina, doar iese.
+    if clean_text == "PASS" or clean_text == "PASS.":
         print(f"Gemini ({current_prompt_key}) -> PASS")
         return None
 
-    if len(clean_text) > 4:  # daca raspunsul este mai lung decat "OK" presupunem ca e mesaj real si returneaza textul AI-ului.
+    if len(clean_text) > 4:
         return ai_raw_text
 
     # psudo-cod:
