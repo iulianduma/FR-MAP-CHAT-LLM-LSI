@@ -1,29 +1,31 @@
 # -*- coding: utf-8 -*-
-# Principiul Modularității: Separăm responsabilitățile (rețea, UI, telemetrie).
-import socket
-import threading
+
+# Aici importam bibliotecile de care avem nevoie.
+import socket  # Pentru conexiunea la net
+import threading  # Ca sa putem face mai multe chestii deodata (sa nu blocheze fereastra cand asteapta mesaje)
 import tkinter as tk
 from tkinter import simpledialog, scrolledtext, messagebox, filedialog, font as tkfont
 import sys
 import time
-import hashlib
-import platform
-import psutil
+import hashlib  # Folosit pentru generarea culorii din nume
+import platform  # Sa vedem pe ce Windows/Linux suntem
+import psutil  # Sa citim RAM-ul si procesorul
 import os
-import re
-import queue
-import ttkbootstrap as tb
+import re  # Pentru curatarea textului (scoatem caractere ciudate)
+import queue  # O coada in care punem mesajele venite de pe net ca sa le ia interfata
+import ttkbootstrap as tb  # Asta face ferestrele sa arate modern
 from tkinter import ttk
 
-# Principiul Configurării Centralizate: Valorile globale pentru mentenanță ușoară.
+# Setarile de baza - aici modific daca se schimba serverul sau vreau alt font
 HOST = 'iulianddd.ddns.net'
 PORT = 5555
 APP_TITLE = "FR-MAP-CHAT-LLM-LSI"
-FONT_FAMILY = "Segoe UI"
-FONT_SIZE = 10
+FONT_FAMILY = "Roboto"
+FONT_SIZE = 11
 COLOR_TEXT = "#ffffff"
 ACCENT_COLOR = "#4361ee"
 
+# Lista cu emoticoane. Aici leg textul de desenul efectiv.
 EMOTICON_MAP = {
     "Zambet": "😊", "Râs": "😃", "Cu ochiul": "😉", "Tristețe": "😞", "Neutru": "😐",
     "Foc": "🔥", "Bravo": "👍", "Nu e bine": "👎", "OK": "👌", "Salut": "👋",
@@ -32,9 +34,11 @@ EMOTICON_MAP = {
     "Cod": "💻", "Bug": "🐛", "Idee": "💡", "Unelte": "🛠️", "Bază de Date": "💾",
     "Euro": "💶", "Dolar": "💵", "Ceas": "⏰", "Rachetă": "🚀", "Petrecere": "🎉",
 }
+# Transform dictionarul de mai sus intr-o lista simpla pentru butoane
 EMOTICON_LIST = [(v, k) for k, v in EMOTICON_MAP.items()]
-EMOTICON_WIDTH_PX = 75  # Spațiere mărită pentru a evita suprapunerea.
+EMOTICON_WIDTH_PX = 75  # Cam atat loc ocupa un buton
 
+# Rolurile AI-ului pe care le pot alege din meniu
 PERSONALITIES = [
     "Mediator Comic", "Receptor (Analist)", "Expert Juridic",
     "Evaluator Proiecte", "Expert HR", "Business Analist (BA)",
@@ -42,18 +46,20 @@ PERSONALITIES = [
 ]
 
 
+# Functia asta genereaza o culoare unica bazata pe nume.
+# E facuta sa dea mereu aceeasi culoare pentru acelasi nume.
 def get_user_color(nickname):
-    """Generează o culoare deterministă bazată pe hash-ul numelui."""
     hash_object = hashlib.sha1(nickname.encode('utf-8'))
     hex_dig = hash_object.hexdigest()
+    # Facem niste calcule (+155) ca sa iasa culori deschise, sa se vada pe fundal negru
     r = int(hex_dig[0:2], 16) % 100 + 155
     g = int(hex_dig[2:4], 16) % 100 + 155
     b = int(hex_dig[4:6], 16) % 100 + 155
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
+# Citesc datele despre PC (CPU, RAM) ca sa le trimit la server.
 def get_system_info():
-    """Colectează date hardware pentru telemetrie."""
     info = {
         "OS": f"{platform.system()} {platform.release()}",
         "CPU": platform.processor(),
@@ -62,6 +68,7 @@ def get_system_info():
         "VRAM": "N/A"
     }
     try:
+        # Comenzi specifice ca sa aflu numele procesorului
         if platform.system() == "Windows":
             info["CPU"] = os.popen('wmic cpu get name').read().strip().split('\n')[-1].strip()
         elif platform.system() == "Linux":
@@ -71,80 +78,85 @@ def get_system_info():
     return info
 
 
+# Curat textul venit de la AI daca are caractere dubioase sau formatare markdown
 def filter_ai_text(text):
-    """Sanitizarea textului primit de la AI."""
     text = re.sub(r'[\r\n\t]+', ' ', text)
     text = re.sub(r'[*_#`~>]+', '', text)
     text = re.sub(r' {2,}', ' ', text)
     return text.strip()
 
 
+# Inlocuiesc textul :zambet: cu emoticonul 😊
 def replace_emoticons(text):
-    """Înlocuirea codurilor textuale cu simboluri emoji."""
     for seq, emo in EMOTICON_MAP.items():
         text = text.replace(f":{emo.replace(' ', '_').lower()}:", emo)
     return text
 
 
+# Aici e toata aplicatia grafica
 class ClientGui:
     def __init__(self):
+        # Initializari de variabile
         self.system_info = get_system_info()
         self.running = True
+
+        # Setari default
         self.current_ai_role = PERSONALITIES[0]
         self.current_ai_model = "Necunoscut"
         self.is_ai_on = True
-        self.user_tags = {}
+        self.user_tags = {}  # Aici tin minte culorile utilizatorilor
         self.max_words = 50
         self.current_theme = "darkly"
         self.emoticon_panel_visible = False
         self._resize_timer = None
         self.last_win_width = 0
 
-        self.gui_queue = queue.Queue()  # Coadă asincronă pentru mesaje.
+        # Coada de mesaje e podul intre retea si interfata
+        self.gui_queue = queue.Queue()
+
+        # Fac fereastra dar o tin ascunsa pana cere numele
         self.win = tb.Window(themename=self.current_theme)
         self.available_themes = self.filter_available_themes()
         self.win.withdraw()
 
+        # Cer numele utilizatorului
         self.nickname = simpledialog.askstring("Autentificare", "Numele tău:", parent=self.win)
         if not self.nickname:
             self.win.destroy()
             sys.exit()
 
+        # Pornesc interfata propriu-zisa
         self.gui_loop()
 
+    # Verific ce teme merg pe calculatorul asta ca sa nu crape aplicatia
     def filter_available_themes(self):
-        """Verifică și returnează toate temele compatibile instalate în sistem."""
         try:
-            # Obținem lista tuturor temelor suportate de ttkbootstrap pe acest PC
             all_installed = self.win.style.theme_names()
-
-            # Definim lista completă de teme pe care dorim să le oferim utilizatorului
             complet_list = [
                 "cosmo", "flatly", "journal", "literal", "lumen", "minty",
                 "pulse", "superhero", "united", "yeti", "solar", "darkly",
                 "cyborg", "vapor"
             ]
-
-            # Returnăm doar acele teme care se regăsesc în sistem
             return [t for t in complet_list if t in all_installed]
         except Exception:
             return [self.current_theme]
 
+    # Cand schimb tema din meniu
     def change_theme(self, event=None):
         new_theme = self.theme_var.get()
         if new_theme in self.available_themes:
             try:
                 self.win.style.theme_use(new_theme)
                 self.current_theme = new_theme
-                self.text_area.config(bg=self.win.style.colors.bg)
+                self.text_area.config(bg=self.win.style.colors.bg)  # Fix pentru fundalul chatului
                 self.update_status_bar()
                 if self.emoticon_panel_visible:
                     self.update_emoticon_layout()
             except Exception:
                 pass
 
+    # Actualizez textul de jos cu info despre PC si AI
     def update_status_bar(self):
-        """Actualizează elementele vizuale din bara de stare."""
         if hasattr(self, 'status_label') and self.win.winfo_exists():
             status_text = (
                 f"Sistem: {self.system_info['OS']} | "
@@ -154,12 +166,14 @@ class ClientGui:
             )
             self.status_label.config(text=status_text)
 
+    # Sterg tot din fereastra de chat
     def clear_chat_window(self):
         if messagebox.askyesno("Confirmare", "Sigur dorești să ștergi tot istoricul chat-ului?"):
             self.text_area.config(state='normal')
             self.text_area.delete('1.0', tk.END)
             self.text_area.config(state='disabled')
 
+    # Salvez conversatia intr-un fisier text
     def save_chat_log(self):
         try:
             chat_content = self.text_area.get("1.0", tk.END)
@@ -171,11 +185,12 @@ class ClientGui:
         except Exception as e:
             messagebox.showerror("Eroare", f"Eroare la salvare: {e}")
 
+    # Pune emoticonul in casuta de input cand dau click
     def insert_emoticon(self, emo):
         self.input_area.insert(tk.END, emo)
 
+    # Calculeaza cate butoane cu fete incap pe un rand
     def update_emoticon_layout(self):
-        """Reconstruiește panoul de emoticoane cu suport pentru culori și dimensiuni corecte."""
         if not self.emoticon_panel_visible or not self.win.winfo_exists():
             return
         try:
@@ -186,32 +201,33 @@ class ClientGui:
 
         max_emoticons = int(current_width / EMOTICON_WIDTH_PX)
         if max_emoticons < 1: max_emoticons = 1
+
+        # Fac curatenie (sterg butoanele vechi)
         for widget in self.emo_frame.winfo_children():
             widget.destroy()
 
         emoticons_to_draw = EMOTICON_LIST[:max_emoticons]
 
-        # Culori personalizate pentru emoticoane.
         emo_colors = {
             "Inimă": "#ff4d4d", "Foc": "#ff9800", "Stea": "#ffeb3b",
             "Bravo": "#4caf50", "Cod": "#00e5ff", "Idee": "#ffeb3b"
         }
 
+        # Desenez butoanele noi
         for emo_symbol, emo_name in emoticons_to_draw:
             color = emo_colors.get(emo_name, "#ffffff")
-            # Folosim tk.Label pentru controlul precis al culorii de prim-plan.
             btn = tk.Label(self.emo_frame, text=emo_symbol,
                            font=("Segoe UI Emoji", 22),
                            anchor='center',
                            background=self.win.style.colors.bg,
                            foreground=color,
                            cursor="hand2")
-            # Padding vertical generos pentru a preveni tăierea.
             btn.pack(side=tk.LEFT, fill=tk.Y, padx=12, pady=15)
             btn.bind('<Button-1>', lambda e, symbol=emo_symbol: self.insert_emoticon(symbol))
 
-        self.emo_frame.config(height=100)  # Înălțime adaptată.
+        self.emo_frame.config(height=100)
 
+    # Cand trag de fereastra, astept putin inainte sa recalculez butoanele (sa nu sacadeze)
     def on_window_resize(self, event):
         if event.widget == self.win:
             if event.width != self.last_win_width:
@@ -220,6 +236,7 @@ class ClientGui:
                     self.win.after_cancel(self._resize_timer)
                 self._resize_timer = self.win.after(500, self.update_emoticon_layout)
 
+    # Arata/Ascunde bara cu emoticoane
     def toggle_emoticon_panel(self):
         self.emoticon_panel_visible = not self.emoticon_panel_visible
         if self.emoticon_panel_visible:
@@ -228,47 +245,51 @@ class ClientGui:
         else:
             self.emo_frame.pack_forget()
 
+    # Aici construiesc fereastra vizuala
     def gui_loop(self):
-        """Construirea interfeței și stabilirea conexiunii."""
         self.win.title(f"{APP_TITLE} - {self.nickname}")
-        self.win.geometry("500x900")
+        self.win.geometry("650x900")
         self.win.deiconify()
 
         try:
+            # Conectarea la server
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.settimeout(5)
             self.sock.connect((HOST, PORT))
             self.sock.settimeout(None)
 
-            # Notificarea serverului și actualizarea imediată a status barului.
+            # Trimit datele mele (handshake)
             info_message = f"SYS:JOIN_INFO:{self.nickname}|OS:{self.system_info['OS']}|CPU:{self.system_info['CPU']}|RAM:{self.system_info['RAM']}"
             self.sock.send(info_message.encode('utf-8'))
-            self.update_status_bar()  # Elimină "Se conectează..." imediat după succes.
+            self.update_status_bar()
 
         except Exception as e:
             messagebox.showerror("Eroare", f"Nu m-am putut conecta la server!\n{e}")
             self.win.destroy()
             sys.exit()
 
-        # UI Construction
+        # Construiesc elementele pe ecran (Butoane, Meniuri)
         header = ttk.Frame(self.win)
         header.pack(fill='x', side='top')
 
         control_frame = ttk.Frame(self.win)
         control_frame.pack(fill='x', side='top', padx=10, pady=5)
 
+        # Meniul de teme
         self.theme_var = tk.StringVar(self.win, value=self.current_theme)
         self.theme_combo = ttk.Combobox(control_frame, textvariable=self.theme_var, values=self.available_themes,
                                         state="readonly", width=12)
         self.theme_combo.pack(side="left", padx=(0, 20))
         self.theme_combo.bind("<<ComboboxSelected>>", self.change_theme)
 
+        # Meniul de personalitati
         self.pers_var = tk.StringVar(self.win, value=self.current_ai_role)
         self.pers_combo = ttk.Combobox(control_frame, textvariable=self.pers_var, values=PERSONALITIES,
                                        state="readonly", width=20)
         self.pers_combo.pack(side="left", padx=(0, 15))
         self.pers_combo.bind("<<ComboboxSelected>>", self.send_pers_config)
 
+        # Buton AI
         self.ai_toggle_button = tb.Button(control_frame, text="AI ON", bootstyle="success",
                                           command=self.toggle_ai_state)
         self.ai_toggle_button.pack(side="right")
@@ -278,6 +299,7 @@ class ClientGui:
         tb.Button(control_frame, text="Curăță Chat", bootstyle="info", command=self.clear_chat_window).pack(
             side="right", padx=(15, 5))
 
+        # Zona de chat
         frame_chat = ttk.Frame(self.win)
         frame_chat.pack(expand=True, fill='both', padx=10, pady=10)
 
@@ -286,20 +308,21 @@ class ClientGui:
         self.text_area.pack(expand=True, fill='both')
         self.text_area.config(state='disabled', bg=self.win.style.colors.bg, wrap=tk.WORD)
 
+        # Containerul de emoticoane (ascuns la inceput)
         self.emo_frame = ttk.Frame(self.win, height=100)
         self.win.bind("<Configure>", self.on_window_resize)
 
-        # Tags pentru stilizare.
+        # Definire stiluri text (Bold, System tags)
         self.bold_font = tkfont.Font(family=FONT_FAMILY, size=FONT_SIZE, weight="bold")
         self.text_area.tag_config('sys_tag', foreground="#ff8a80", font=(FONT_FAMILY, 8))
         self.text_area.tag_config('me_tag', foreground=ACCENT_COLOR, font=self.bold_font)
 
-        # Status Bar.
+        # Bara de jos
         self.status_label = ttk.Label(self.win, text="Se conectează...", anchor="w", font=(FONT_FAMILY, 8),
                                       bootstyle="inverse-secondary")
         self.status_label.pack(side="bottom", fill="x")
 
-        # Input Area
+        # Zona de scris mesaj
         input_frame = ttk.Frame(self.win)
         input_frame.pack(fill='x', side='bottom', pady=10, padx=10)
         self.input_area = tb.Entry(input_frame, bootstyle="primary", font=(FONT_FAMILY, 11))
@@ -307,14 +330,17 @@ class ClientGui:
         self.input_area.bind("<Return>", self.write)
         tb.Button(input_frame, text="Trimite", bootstyle="primary", command=self.write).pack(side=tk.RIGHT)
 
-        # Fire de execuție.
+        # Pornesc thread-ul care asculta serverul in fundal
         self.receive_thread = threading.Thread(target=self.receive, daemon=True)
         self.receive_thread.start()
+
+        # Pornesc bucla care verifica mesajele primite
         self.process_queue_loop()
 
         self.win.protocol("WM_DELETE_WINDOW", self.stop)
         self.win.mainloop()
 
+    # Verifica daca au venit mesaje noi si le afiseaza
     def process_queue_loop(self):
         try:
             while True:
@@ -328,12 +354,14 @@ class ClientGui:
         if self.running:
             self.win.after(100, self.process_queue_loop)
 
+    # Trimit la server daca am oprit/pornit AI-ul
     def toggle_ai_state(self):
         self.is_ai_on = not self.is_ai_on
         state = "ON" if self.is_ai_on else "OFF"
         self.ai_toggle_button.config(text=f"AI {state}", bootstyle="success" if self.is_ai_on else "danger")
         self.send_config("AISTATE", state)
 
+    # Trimit la server ce personalitate am ales
     def send_pers_config(self, event=None):
         pers_value = self.pers_var.get()
         self.send_config("PERS", pers_value)
@@ -345,6 +373,7 @@ class ClientGui:
         except:
             pass
 
+    # Trimit mesajul scris cand apas Enter
     def write(self, event=None):
         txt = self.input_area.get()
         if txt:
@@ -354,6 +383,7 @@ class ClientGui:
             except:
                 pass
 
+    # Fac curatenie cand inchid aplicatia
     def stop(self):
         self.running = False
         try:
@@ -363,23 +393,22 @@ class ClientGui:
         self.win.destroy()
         sys.exit()
 
+    # Aici afisez mesajul in chat si il colorez
     def display_message(self, message):
-        """Procesează, filtrează și randează mesajele în chat."""
         self.text_area.config(state='normal')
 
-        # Filtru pentru loguri brute de IP/Port (Watchdog).
+        # Ignor logurile alea urate cu IP/Port (Watchdog)
         if "', " in message and any(char.isdigit() for char in message):
             self.text_area.config(state='disabled')
             return
 
         if message.startswith("SYS:"):
             clean = message.replace("SYS:", "")
-
-            # Fragmentare mesaje pe mai multe linii pentru lizibilitate.
+            # Le sparg pe randuri sa arate bine
             for key in ["CONECTAT LA SERVER", "AI ACTIV:", "ROL INIȚIAL:", "ROL:", "JOIN_INFO:"]:
                 clean = clean.replace(key, f"\n{key}")
 
-            # Logica de actualizare status la mesaje de sistem.
+            # Actualizez statusul daca primesc info de la server
             if "AI ACTIV:" in clean:
                 self.current_ai_model = clean.split("AI ACTIV:")[1].split('\n')[0].strip()
             if "ROL INIȚIAL:" in clean:
@@ -392,9 +421,8 @@ class ClientGui:
             if ":" in message:
                 u_name, u_msg = message.split(":", 1)
                 u_msg = replace_emoticons(u_msg)
-                tag = 'me_tag' if u_name == self.nickname else 'normal'
 
-                # Tag dinamic pentru culori utilizatori.
+                # Daca e user nou, ii generez o culoare
                 if u_name not in self.user_tags:
                     color = get_user_color(u_name)
                     self.user_tags[u_name] = color
@@ -409,6 +437,7 @@ class ClientGui:
         self.text_area.yview('end')
         self.text_area.config(state='disabled')
 
+    # Functia care asculta non-stop datele de la server
     def receive(self):
         while self.running:
             try:
@@ -420,6 +449,7 @@ class ClientGui:
                     self.gui_queue.put(("DISCONNECT", "Eroare rețea"))
                 break
 
+    # Daca pica netul, scriu in chat
     def _handle_disconnection(self, error):
         self.text_area.config(state='normal')
         self.text_area.insert('end', f"\n!!! EROARE: {error}\n", 'sys_tag')
